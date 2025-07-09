@@ -47,37 +47,60 @@ let
     in
     hash';
 
-  singleFodFetcher =
+  oneHashFetcher =
     {
-      hash,
-      packagesFiles,
-      ...
-    }@withOneHash:
+      impureEnvVars ? [ ],
+      withOneHash,
+      oneHashFetcherArgs,
+    }:
     let
-      derivation = stdenvNoCC.mkDerivation {
-        pname = "fetcher";
-        version = "0";
+      hash_ =
+        if withOneHash.hash != "" then
+          { outputHash = withOneHash.hash; }
+        else
+          {
+            outputHash = "";
+            outputHashAlgo = "sha256";
+          };
 
-        src = null;
-        unpackPhase = "true";
+      derivation =
+        stdenvNoCC.mkDerivation {
+          pname = "fetcher";
+          version = "0";
 
-        nativeBuildInputs = [
-          curl
-        ];
-        buildPhase =
-          ''
-            mkdir -p $out;
+          src = null;
+          unpackPhase = "true";
 
-          ''
-          + (makeCurlCommands packagesFiles);
+          nativeBuildInputs = [
+            curl
+          ];
+          buildPhase =
+            ''
+              mkdir -p $out;
 
-        SSL_CERT_FILE = "${cacert}/etc/ssl/certs/ca-bundle.crt";
+            ''
+            + (makeCurlCommands withOneHash.packagesFiles);
 
-        outputHashMode = "recursive";
-        outputHash = hash;
-        outputHashAlgo = "sha256";
-      };
-      packagesFiles' = builtins.map (addOutPath "${derivation}") packagesFiles;
+          impureEnvVars = lib.fetchers.proxyImpureEnvVars ++ impureEnvVars;
+
+          SSL_CERT_FILE =
+            if
+              (
+                hash_.outputHash == ""
+                || hash_.outputHash == lib.fakeSha256
+                || hash_.outputHash == lib.fakeSha512
+                || hash_.outputHash == lib.fakeHash
+              )
+            then
+              "${cacert}/etc/ssl/certs/ca-bundle.crt"
+            else
+              "/no-cert-file.crt";
+
+          outputHashMode = "recursive";
+        }
+        // hash_
+        // oneHashFetcherArgs;
+      packagesFiles' = builtins.map (addOutPath "${derivation}") withOneHash.packagesFiles;
     in
     withOneHash
     // {
@@ -86,12 +109,13 @@ let
     };
 
   fetchPackageFile =
-    file:
+    { file, impureEnvVars, fetchurlArgs }:
     let
       derivation = fetchurl {
         url = file.url;
         hash = file.hash;
-      };
+        netrcImpureEnvVars = impureEnvVars;
+      } // fetchurlArgs;
     in
     file
     // {
@@ -99,19 +123,22 @@ let
       outPath = "${derivation}";
     };
 
-  toOneList =
-    args:
-    (lib.optionals (args ? preFetched) args.preFetched.packagesFiles)
-    ++ (lib.optionals (args ? withOneHash) args.withOneHash.packagesFiles)
-    ++ (lib.optionals (args ? withHashPerFile) args.withHashPerFile.packagesFiles);
+  toPackagesFilesList =
+    packages:
+    (lib.optionals (packages ? preFetched) packages.preFetched.packagesFiles)
+    ++ (lib.optionals (packages ? withOneHash) packages.withOneHash.packagesFiles)
+    ++ (lib.optionals (packages ? withHashPerFile) packages.withHashPerFile.packagesFiles);
 
-  mergeAllPackagesFiles =
-    argsList:
+  ## merges a list of packages
+  ## `[ { withHashPerFile = ...; withOneHash = ...; } { withHashPerFile = ...; withOneHash = ...; } ... ]`
+  ## to a single packages object `{ withHashPerFile = ...; withOneHash = ...; }`
+  mergePackagesList =
+    packagesList:
     let
       merge =
         key:
         builtins.concatLists (
-          builtins.map (args: lib.attrsets.attrByPath [ "${key}" "packagesFiles" ] [ ] args) argsList
+          builtins.map (packages: lib.attrsets.attrByPath [ "${key}" "packagesFiles" ] [ ] packages) packagesList
         );
     in
     builtins.mapAttrs (name: value: { packagesFiles = merge name; }) {
@@ -121,24 +148,34 @@ let
     };
 
   fetcher =
-    args:
+    {
+      packages,
+      impureEnvVars ? "",
+      oneHashFetcherArgs ? { },
+      fetchurlArgs ? { },
+    }:
     let
-      hasWithHashPerFile = args ? withHashPerFile;
-      hasWithOneHash = args ? withOneHash;
-      hasTopLevelHash = args.withOneHash ? hash;
-      hasPackages = args.withOneHash.packagesFiles != { };
+      hasWithHashPerFile = packages ? withHashPerFile;
+      hasWithOneHash = packages ? withOneHash;
+      hasTopLevelHash = packages.withOneHash ? hash;
+      hasPackages = packages.withOneHash.packagesFiles != { };
 
       withSingleFod = lib.optionalAttrs (hasWithOneHash && hasTopLevelHash && hasPackages) {
-        withOneHash = singleFodFetcher args.withOneHash;
+        withOneHash = oneHashFetcher {
+          inherit impureEnvVars oneHashFetcherArgs;
+          inherit (packages) withOneHash;
+        };
       };
       withFodPerFile = lib.optionalAttrs hasWithHashPerFile {
-        withHashPerFile = args.withHashPerFile // {
-          packagesFiles = builtins.map fetchPackageFile args.withHashPerFile.packagesFiles;
+        withHashPerFile = packages.withHashPerFile // {
+          packagesFiles = builtins.map (
+            file: fetchPackageFile { inherit file impureEnvVars fetchurlArgs; }
+          ) packages.withHashPerFile.packagesFiles;
         };
       };
 
     in
-    args // withSingleFod // withFodPerFile;
+    packages // withSingleFod // withFodPerFile;
 
 in
 {
@@ -146,7 +183,7 @@ in
     fetcher
     urlToPath
     fixHash
-    toOneList
-    mergeAllPackagesFiles
+    toPackagesFilesList
+    mergePackagesList
     ;
 }

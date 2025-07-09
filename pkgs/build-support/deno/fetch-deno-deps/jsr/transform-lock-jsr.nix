@@ -5,14 +5,13 @@
   callPackage,
 }:
 let
+  inherit (callPackage ../lib.nix { }) mergePackagesList fixHash;
 
-  inherit (callPackage ../lib.nix { }) mergeAllPackagesFiles fixHash;
-
-  makeMetaJsonURL =
+  makeMetaJsonUrl =
     parsedPackageSpecifier:
     "https://jsr.io/@${parsedPackageSpecifier.scope}/${parsedPackageSpecifier.name}/meta.json";
 
-  makeVersionMetaJsonURL =
+  makeVersionMetaJsonUrl =
     parsedPackageSpecifier:
     "https://jsr.io/@${parsedPackageSpecifier.scope}/${parsedPackageSpecifier.name}/${parsedPackageSpecifier.version}_meta.json";
 
@@ -23,7 +22,7 @@ let
   fetchVersionMetaJson =
     parsedPackageSpecifier: hash:
     fetchurl {
-      url = makeVersionMetaJsonURL parsedPackageSpecifier;
+      url = makeVersionMetaJsonUrl parsedPackageSpecifier;
       hash = fixHash {
         inherit hash;
         algo = "sha256";
@@ -104,8 +103,8 @@ let
             algo = "sha256";
           };
           url = makeJsrPackageFileUrl parsedPackageSpecifier filePath;
-          fileName = "/${parsedPackageSpecifier.version}${filePath}";
           meta = {
+            fileName = "/${parsedPackageSpecifier.version}${filePath}";
             inherit parsedPackageSpecifier;
           };
         }) filesAndHashes
@@ -117,18 +116,18 @@ let
           {
             outPath = "${metaJsonDerivation}";
             derivation = metaJsonDerivation;
-            url = makeMetaJsonURL parsedPackageSpecifier;
-            fileName = "/meta.json";
+            url = makeMetaJsonUrl parsedPackageSpecifier;
             meta = {
+              fileName = "/meta.json";
               inherit parsedPackageSpecifier;
             };
           }
           {
             outPath = "${versionMetaJsonDerivation}";
             derivation = versionMetaJsonDerivation;
-            url = makeVersionMetaJsonURL parsedPackageSpecifier;
-            fileName = "/${parsedPackageSpecifier.version}_meta.json";
+            url = makeVersionMetaJsonUrl parsedPackageSpecifier;
             meta = {
+              fileName = "/${parsedPackageSpecifier.version}_meta.json";
               inherit parsedPackageSpecifier;
             };
           }
@@ -141,11 +140,11 @@ let
     };
 
   makeJsrPackages =
-    jsrParsed:
+    { jsrParsed }:
     let
       jsrPackages = builtins.attrValues (builtins.mapAttrs (name: value: makeJsrPackage value) jsrParsed);
     in
-    mergeAllPackagesFiles jsrPackages;
+    mergePackagesList jsrPackages;
 in
 {
   inherit makeJsrPackages;

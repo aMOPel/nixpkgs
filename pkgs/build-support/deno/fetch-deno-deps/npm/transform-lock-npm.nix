@@ -2,7 +2,7 @@
   callPackage,
 }:
 let
-  inherit (callPackage ../lib.nix { }) mergeAllPackagesFiles fixHash;
+  inherit (callPackage ../lib.nix { }) fixHash;
 
   makeNpmPackageUrl =
     parsedPackageSpecifier:
@@ -16,24 +16,19 @@ let
 
   makeNpmPackage =
     { parsedPackageSpecifier, hash }:
-    let
-      parsedPackageSpecifier' = parsedPackageSpecifier // {
-        registry = "npm";
-      };
-    in
     {
       hash = fixHash {
         inherit hash;
         algo = "sha512";
       };
-      url = makeNpmPackageUrl parsedPackageSpecifier';
+      url = makeNpmPackageUrl parsedPackageSpecifier;
       meta = {
-        parsedPackageSpecifier = parsedPackageSpecifier';
+        inherit parsedPackageSpecifier;
       };
     };
 
   makeNpmPackages =
-    npmTopLevelPackages: npmParsed:
+    { npmTopLevelPackages, npmParsed }:
     let
       npmPackages = builtins.attrValues (builtins.mapAttrs (name: value: makeNpmPackage value) npmParsed);
     in

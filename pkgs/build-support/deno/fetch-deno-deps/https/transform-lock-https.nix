@@ -7,7 +7,7 @@ let
 
   getRegistry = url: builtins.elemAt (builtins.split "/" (lib.strings.removePrefix "https://" url)) 0;
 
-  makeUrlPackageFile =
+  makeHttpsPackageFile =
     {
       url,
       hash,
@@ -41,8 +41,7 @@ let
           };
       };
       pickTransformer =
-        registry:
-        if builtins.hasAttr registry transformers then transformers."${registry}" else transformers.default;
+        registry: if transformers ? registry then transformers."${registry}" else transformers.default;
     in
     (pickTransformer registry) {
       inherit url;
@@ -52,14 +51,16 @@ let
       };
     };
 
-  makeUrlPackages = urlParsed: {
-    withOneHash = {
-      packagesFiles = builtins.attrValues (
-        builtins.mapAttrs (url: hash: makeUrlPackageFile { inherit url hash; }) urlParsed
-      );
+  makeHttpsPackages =
+    { httpsParsed }:
+    {
+      withOneHash = {
+        packagesFiles = builtins.attrValues (
+          builtins.mapAttrs (url: hash: makeHttpsPackageFile { inherit url hash; }) httpsParsed
+        );
+      };
     };
-  };
 in
 {
-  inherit makeUrlPackages;
+  inherit makeHttpsPackages;
 }

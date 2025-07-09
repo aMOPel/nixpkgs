@@ -50,22 +50,23 @@ Generally speaking there are 2 ways to use FODs to fetch dependencies:
 
 1. Use one hash and one FOD, containing all dependencies
 2. Use hashes from a lock file and many FODs,
-one per lock file hash.
+   one per lock file hash.
 
 The proposed interface supports both ways and allows to even combine them.
 
 A call to the interface looks like this
 
 ```nix
-fetcher args
+fetcher packages
 ```
 
-where `args` looks like this
+where `packages` looks like this
 
 ```nix
 {
     withOneHash = schema1;
     withHashPerFile = schema2;
+    preFetched = schema3;
 };
 ```
 
@@ -82,9 +83,10 @@ and `schema1` looks like this
         url = ""; # (required)
         # outPath = ""; # (filled in by `fetcher`), `<top level derivation path>/<file path>`
         curlOpts = []; # (optional) per file curl opts
-        meta = { }; # object of arbitrary shape that is passed through
-        packageName = ""; # (optional)
-        fileName = ""; # (optional)
+        meta = { # (optional) object of arbitrary shape that is passed through
+          packageName = ""; # (example)
+          fileName = ""; # (example)
+        };
       }
       # ...
     ];
@@ -104,9 +106,30 @@ and `schema2` looks like this
         # derivation = null; # (filled in by `fetcher`), file level derivation
         hash = ""; # (required)
         curlOpts = []; # (optional) per file curl opts
-        meta = { }; # object of arbitrary shape that is passed through
-        packageName = ""; # (optional)
-        fileName = ""; # (optional)
+        meta = { # (optional) object of arbitrary shape that is passed through
+          packageName = ""; # (example)
+          fileName = ""; # (example)
+        };
+      }
+      # ...
+    ];
+  };
+```
+
+and `schema3` looks like this
+
+```nix
+{
+    meta = { }; # (optional) object of arbitrary shape that is passed through
+    packagesFiles = [
+      {
+        url = ""; # (required)
+        outPath = ""; # (required)
+        derivation = null; # (required)
+        meta = { # (optional) object of arbitrary shape that is passed through
+          packageName = ""; # (example)
+          fileName = ""; # (example)
+        };
       }
       # ...
     ];
@@ -121,10 +144,14 @@ For `withHashPerFile`, `fetcher` will construct one FODs per `(url, hash)` pair 
 In both cases, each file gets the `outPath` property filled in by `fetcher`,
 which points to the fetched file.
 
+The files in `preFetched` are left alone by the fetcher. This key can be useful,
+if some files have to be fetched beforehand, and you want to use those files through the
+same interface.
+
 With a utility function:
 
 ```nix
-toOneList (fetcher args)
+toOneList (fetcher packages)
 ```
 
 the `.packagesFiles` lists are extracted and concatenated,
@@ -136,9 +163,8 @@ the folder structure that the language-specific package manager expects.
 There are generally 3 steps to construct a custom fetcher with this interface:
 
 1. Parse a lock file or other files listing dependencies and transform the data
-into the data structure outlined above.
+   into the data structure outlined above.
 2. Pass the data structure to the `fetcher` function.
 3. Make a new derivation to map the list of fetched files to the folder structure that the
-language-specific package manager expects, by using the `outPath` nix store paths
-and other (meta) data associated with the file.
-
+   language-specific package manager expects, by using the `outPath` nix store paths
+   and other (meta) data associated with the file.

@@ -3,18 +3,17 @@
   stdenvNoCC,
   deno,
   writeTextFile,
-  callPackage,
 }:
 let
   makeUrlFileMapJson =
-    allFiles:
+    { allFiles }:
     let
       partitionByHasDerivation = builtins.partition (file: file ? derivation) allFiles;
       filesWithDerivation = partitionByHasDerivation.right;
       filesWithoutDerivation = partitionByHasDerivation.wrong;
 
       urlFileMap = builtins.map (
-        { url, outPath, ... }@args:
+        { url, outPath, ... }@file:
         let
           lines = lib.splitString "\r" (builtins.readFile "${outPath}-headers");
           lines' = builtins.map lib.strings.trim (builtins.filter (line: line != "" && line != "\n") lines);
@@ -35,9 +34,9 @@ let
           );
         in
         {
-          url = if args ? meta.original then args.meta.original.url else url;
-          headers = headers;
-          out_path = outPath; # using `outPath` does weird things with builtins.toJSON
+          inherit headers;
+          url = if file ? meta.original then file.meta.original.url else url;
+          out_path = outPath; # using `outPath` makes builtins.toJSON think it's a derivation
         }
       ) filesWithoutDerivation;
 
@@ -55,7 +54,11 @@ let
     };
 
   transformPackages =
-    fileMapJson:
+    {
+      urlFileMap,
+      vendorDir,
+      denoDir,
+    }:
     stdenvNoCC.mkDerivation {
       pname = "deno_cache_dir";
       version = "0.1.0";
@@ -63,9 +66,8 @@ let
       src = ../deno;
 
       buildPhase = ''
-        # mkdir -p $out/.deno
         mkdir -p $out/vendor
-        deno run --allow-all ./main.ts --cache-path=$out/.deno --vendor-path=$out/vendor --url-file-map=${fileMapJson}
+        deno run --allow-all ./main.ts --cache-path=$out/${denoDir} --vendor-path=$out/${vendorDir} --url-file-map=${urlFileMap}
       '';
 
       nativeBuildInputs = [
@@ -75,8 +77,14 @@ let
 in
 {
   inherit transformPackages makeUrlFileMapJson;
-  transformJsrAndUrlPackages = allFiles: rec {
-    urlFileMap = makeUrlFileMapJson allFiles;
-    transformed = transformPackages urlFileMap;
-  };
+  transformJsrAndHttpsPackages =
+    {
+      allFiles,
+      vendorDir,
+      denoDir,
+    }:
+    rec {
+      urlFileMap = makeUrlFileMapJson { inherit allFiles; };
+      transformed = transformPackages { inherit urlFileMap vendorDir denoDir; };
+    };
 }

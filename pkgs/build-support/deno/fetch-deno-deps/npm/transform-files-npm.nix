@@ -62,15 +62,19 @@ let
     builtins.concatStringsSep "\n" (builtins.map (makePackageCommand root) allPackages);
 
   transformNpmPackages =
-    topLevelPackages: allPackages:
+    {
+      name,
+      topLevelPackages,
+      allPackages,
+      denoDir,
+    }:
     let
-      root = "$out/.deno/npm/registry.npmjs.org";
+      root = "$out/${denoDir}/npm/registry.npmjs.org";
       cpCommands = makePackageCommands root allPackages;
       registryJsonCpCommands = makeRegistryJsonCpCommands root topLevelPackages;
     in
     stdenvNoCC.mkDerivation {
-      pname = "deno_npm_dir";
-      version = "0.1.0";
+      name = "${name}-npm";
 
       src = null;
       unpackPhase = "true";
