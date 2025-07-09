@@ -1,0 +1,10 @@
+{
+  "tasks": {
+    "dev": "deno run --watch main.ts"
+  },
+  "imports": {
+    "@deno/cache-dir": "jsr:@deno/cache-dir@^0.22.3",
+    "@std/cli": "jsr:@std/cli@^1.0.20"
+  },
+  "vendor": true
+}

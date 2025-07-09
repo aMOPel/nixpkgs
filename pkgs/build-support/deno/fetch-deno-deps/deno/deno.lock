@@ -1,0 +1,55 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@deno/cache-dir@~0.22.3": "0.22.3",
+    "jsr:@deno/graph@0.86": "0.86.9",
+    "jsr:@std/bytes@^1.0.5": "1.0.6",
+    "jsr:@std/cli@^1.0.20": "1.0.20",
+    "jsr:@std/fmt@^1.0.3": "1.0.8",
+    "jsr:@std/fs@^1.0.6": "1.0.18",
+    "jsr:@std/io@0.225": "0.225.2",
+    "jsr:@std/path@^1.0.8": "1.1.0"
+  },
+  "jsr": {
+    "@deno/cache-dir@0.22.3": {
+      "integrity": "20e1b87d99ca2af13f7e1484861cefadcb28b1eebc773bc5a18f26f0edd988ae",
+      "dependencies": [
+        "jsr:@deno/graph",
+        "jsr:@std/fmt",
+        "jsr:@std/fs",
+        "jsr:@std/io",
+        "jsr:@std/path"
+      ]
+    },
+    "@deno/graph@0.86.9": {
+      "integrity": "c4f353a695bcc5246c099602977dabc6534eacea9999a35a8cb24e807192e6a1"
+    },
+    "@std/bytes@1.0.6": {
+      "integrity": "f6ac6adbd8ccd99314045f5703e23af0a68d7f7e58364b47d2c7f408aeb5820a"
+    },
+    "@std/cli@1.0.20": {
+      "integrity": "a8c384a2c98cec6ec6a2055c273a916e2772485eb784af0db004c5ab8ba52333"
+    },
+    "@std/fmt@1.0.8": {
+      "integrity": "71e1fc498787e4434d213647a6e43e794af4fd393ef8f52062246e06f7e372b7"
+    },
+    "@std/fs@1.0.18": {
+      "integrity": "24bcad99eab1af4fde75e05da6e9ed0e0dce5edb71b7e34baacf86ffe3969f3a"
+    },
+    "@std/io@0.225.2": {
+      "integrity": "3c740cd4ee4c082e6cfc86458f47e2ab7cb353dc6234d5e9b1f91a2de5f4d6c7",
+      "dependencies": [
+        "jsr:@std/bytes"
+      ]
+    },
+    "@std/path@1.1.0": {
+      "integrity": "ddc94f8e3c275627281cbc23341df6b8bcc874d70374f75fec2533521e3d6886"
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "jsr:@deno/cache-dir@~0.22.3",
+      "jsr:@std/cli@^1.0.20"
+    ]
+  }
+}

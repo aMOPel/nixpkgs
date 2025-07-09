@@ -1,0 +1,51 @@
+{
+  callPackage,
+}:
+let
+  inherit (callPackage ../lib.nix { }) mergeAllPackagesFiles fixHash;
+
+  makeNpmPackageUrl =
+    parsedPackageSpecifier:
+    let
+      # https://registry.npmjs.org/get-stdin/-/get-stdin-8.0.0.tgz
+      withScope = "https://registry.npmjs.org/@${parsedPackageSpecifier.scope}/${parsedPackageSpecifier.name}/-/${parsedPackageSpecifier.name}-${parsedPackageSpecifier.version}.tgz";
+      # https://registry.npmjs.org/@tokens-studio/sd-transforms/-/sd-transforms-2.0.1.tgz
+      withoutScope = "https://registry.npmjs.org/${parsedPackageSpecifier.name}/-/${parsedPackageSpecifier.name}-${parsedPackageSpecifier.version}.tgz";
+    in
+    if parsedPackageSpecifier.scope != null then withScope else withoutScope;
+
+  makeNpmPackage =
+    { parsedPackageSpecifier, hash }:
+    let
+      parsedPackageSpecifier' = parsedPackageSpecifier // {
+        registry = "npm";
+      };
+    in
+    {
+      hash = fixHash {
+        inherit hash;
+        algo = "sha512";
+      };
+      url = makeNpmPackageUrl parsedPackageSpecifier';
+      meta = {
+        parsedPackageSpecifier = parsedPackageSpecifier';
+      };
+    };
+
+  makeNpmPackages =
+    npmTopLevelPackages: npmParsed:
+    let
+      npmPackages = builtins.attrValues (builtins.mapAttrs (name: value: makeNpmPackage value) npmParsed);
+    in
+    {
+      withHashPerFile = {
+        meta = {
+          topLevelPackages = npmTopLevelPackages;
+        };
+        packagesFiles = npmPackages;
+      };
+    };
+in
+{
+  inherit makeNpmPackages;
+}
