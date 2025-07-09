@@ -1,10 +1,13 @@
 {
   lib,
-  stdenvNoCC,
-  deno,
   writeTextFile,
+  callPackage,
+  nodejs_24,
+  stdenvNoCC,
 }:
 let
+  inherit (callPackage ../deno-cache-dir-wrapper { }) denoCacheDirWrapper;
+
   makeUrlFileMapJson =
     { allFiles }:
     let
@@ -60,18 +63,21 @@ let
       denoDir,
     }:
     stdenvNoCC.mkDerivation {
-      pname = "deno_cache_dir";
+      pname = "transform-files-jsr-and-https";
       version = "0.1.0";
 
-      src = ../deno;
+      src = null;
+      unpackPhase = "true";
 
       buildPhase = ''
-        mkdir -p $out/vendor
-        deno run --allow-all ./main.ts --cache-path=$out/${denoDir} --vendor-path=$out/${vendorDir} --url-file-map=${urlFileMap}
+        mkdir -p $out/${denoDir}
+        mkdir -p $out/${vendorDir}
+        deno-cache-dir-wrapper --cache-path $out/${denoDir} --vendor-path $out/${vendorDir} --url-file-map ${urlFileMap}
       '';
 
       nativeBuildInputs = [
-        deno
+        nodejs_24
+        denoCacheDirWrapper
       ];
     };
 in
