@@ -1,5 +1,5 @@
 [package]
-name = "deno-rs"
+name = "deno-cache-dir-wrapper"
 version = "0.1.0"
 edition = "2024"
 
