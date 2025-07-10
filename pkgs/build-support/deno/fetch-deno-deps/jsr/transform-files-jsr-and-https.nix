@@ -6,7 +6,7 @@
   stdenvNoCC,
 }:
 let
-  inherit (callPackage ../deno-cache-dir-wrapper { }) denoCacheDirWrapper;
+  deno-rs = callPackage ../deno-rs { };
 
   makeUrlFileMapJson =
     { allFiles }:
@@ -72,12 +72,12 @@ let
       buildPhase = ''
         mkdir -p $out/${denoDir}
         mkdir -p $out/${vendorDir}
-        deno-cache-dir-wrapper --cache-path $out/${denoDir} --vendor-path $out/${vendorDir} --url-file-map ${urlFileMap}
+        deno-rs --cache-path $out/${denoDir} --vendor-path $out/${vendorDir} --url-file-map ${urlFileMap}
       '';
 
       nativeBuildInputs = [
         nodejs_24
-        denoCacheDirWrapper
+        deno-rs
       ];
     };
 in
