@@ -1,5 +1,4 @@
 import { HttpCache } from "@deno/cache-dir";
-import { parseArgs } from "@std/cli/parse-args";
 
 type UrlFile = {
   url: string;
@@ -14,26 +13,39 @@ type Config = {
 };
 
 function getConfig(): Config {
-  const flags = parseArgs(Deno.args, {
-    string: ["url-file-map", "cache-path", "vendor-path"],
+  const flagsParsed: {
+    "url-file-map"?: string;
+    "cache-path"?: string;
+    "vendor-path"?: string;
+  } = {
+    "url-file-map": undefined,
+    "cache-path": undefined,
+    "vendor-path": undefined,
+  };
+  const flags = Object.keys(flagsParsed).map((v) => "--" + v);
+  Deno.args.forEach((arg, index) => {
+    if (flags.includes(arg) && Deno.args.length > index + 1) {
+      flagsParsed[arg.replace(/^--/g, "") as keyof typeof flagsParsed] =
+        Deno.args[index + 1];
+    }
   });
 
-  if (!flags["url-file-map"]) {
+  if (!flagsParsed["url-file-map"]) {
     throw "--url-file-map flag not set but required";
   }
-  if (!flags["cache-path"]) {
+  if (!flagsParsed["cache-path"]) {
     throw "--cache-path flag not set but required";
   }
-  if (!flags["vendor-path"]) {
+  if (!flagsParsed["vendor-path"]) {
     throw "--vendor-path flag not set but required";
   }
 
   return {
     urlFileMap: JSON.parse(
-      new TextDecoder("utf-8").decode(Deno.readFileSync(flags["url-file-map"]))
+      new TextDecoder("utf-8").decode(Deno.readFileSync(flagsParsed["url-file-map"])),
     ),
-    cachePath: flags["cache-path"],
-    vendorPath: flags["vendor-path"],
+    cachePath: flagsParsed["cache-path"],
+    vendorPath: flagsParsed["vendor-path"],
   };
 }
 
@@ -51,7 +63,7 @@ async function createDenoCache(config: Config) {
 
 async function main() {
   const config = getConfig();
-  await createDenoCache(config)
+  await createDenoCache(config);
 }
 
 if (import.meta.main) {
