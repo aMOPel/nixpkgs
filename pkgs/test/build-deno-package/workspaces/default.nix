@@ -3,7 +3,7 @@ rec {
   sub1 = buildDenoPackage {
     pname = "test-deno-build-workspaces-sub1";
     version = "0.1.0";
-    denoDepsHash = "sha256-imraVvtIJqi31aaWv7U1ODVRmOuou1ZR++z7QqnTPr0=";
+    denoDepsHash = "sha256-aDVopdmoezbgDsgFNzm1Cwlyj5y5bIeJZESrbUDD7UY=";
     src = nix-gitignore.gitignoreSource [ ] ./.;
     denoWorkspacePath = "./sub1";
     extraTaskFlags = [

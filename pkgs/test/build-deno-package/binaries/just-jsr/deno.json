@@ -5,8 +5,7 @@
   },
   "imports": {
       "@luca/cases": "jsr:@luca/cases@1.0.0",
-      "@std/cli": "jsr:@std/cli@1.0.17",
-      "cases": "https://deno.land/x/case@2.2.0/mod.ts"
+      "@std/cli": "jsr:@std/cli@1.0.17"
   },
   "vendor": true
 }

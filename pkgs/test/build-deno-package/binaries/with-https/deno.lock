@@ -12,6 +12,9 @@
       "integrity": "e15b9abe629e17be90cc6216327f03a29eae613365f1353837fa749aad29ce7b"
     }
   },
+  "redirects": {
+    "https://unpkg.com/camelcase@8.0.0": "https://unpkg.com/camelcase@8.0.0/index.js"
+  },
   "remote": {
     "https://deno.land/x/case@2.2.0/camelCase.ts": "b9a4cf361a7c9740ecb75e00b5e2c006bd4e5d40e442d26c5f2760286fa66796",
     "https://deno.land/x/case@2.2.0/constantCase.ts": "c698fc32f00cd267c1684b1d413d784260d7e7798f2bf506803e418497d839b5",
@@ -33,7 +36,10 @@
     "https://deno.land/x/case@2.2.0/upperFirstCase.ts": "b964c2d8d3a85c78cd35f609135cbde99d84b9522a21470336b5af80a37facbd",
     "https://deno.land/x/case@2.2.0/vendor/camelCaseRegexp.ts": "7d9ff02aad4ab6429eeab7c7353f7bcdd6cc5909a8bd3dda97918c8bbb7621ae",
     "https://deno.land/x/case@2.2.0/vendor/camelCaseUpperRegexp.ts": "292de54a698370f90adcdf95727993d09888b7f33d17f72f8e54ba75f7791787",
-    "https://deno.land/x/case@2.2.0/vendor/nonWordRegexp.ts": "c1a052629a694144b48c66b0175a22a83f4d61cb40f4e45293fc5d6b123f927e"
+    "https://deno.land/x/case@2.2.0/vendor/nonWordRegexp.ts": "c1a052629a694144b48c66b0175a22a83f4d61cb40f4e45293fc5d6b123f927e",
+    "https://esm.sh/cowsay@1.6.0": "2c541d7ec5145f62de9a6d212ac3296bc62764bf05a733432cb27767b5789d73",
+    "https://esm.sh/cowsay@1.6.0/denonext/cowsay.mjs": "6a60bc4b36e75938414d665f84940db3e352b1972bfc3ba804611b31e68de560",
+    "https://unpkg.com/camelcase@8.0.0/index.js": "ea12d95acc429ade42eb9e143cffdbe8e981c3e252e13d978c1e07ccf06cc7d4"
   },
   "workspace": {
     "dependencies": [
