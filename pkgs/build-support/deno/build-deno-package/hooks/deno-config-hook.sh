@@ -64,11 +64,11 @@ denoConfigHook() {
   export DENO_DIR="$(pwd)"/"$DENO_DIR"
 
   installDeps() {
-    if [[ -d "$denoDeps/.deno" ]]; then
-      cp -r --no-preserve=mode "$denoDeps/.deno" "$DENO_DIR"
+    if [[ -d "$denoDeps/$DENO_DIR" ]]; then
+      cp -r --no-preserve=mode "$denoDeps/$DENO_DIR" "$DENO_DIR"
     fi
-    if [[ -d "$denoDeps/vendor" ]]; then
-      cp -r --no-preserve=mode "$denoDeps/vendor" ./vendor
+    if [[ -d "$denoDeps/$vendorDir" ]]; then
+      cp -r --no-preserve=mode "$denoDeps/$vendorDir" ./$vendorDir
     fi
     if [[ -d "$denoDeps/node_modules" ]]; then
       cp -r --no-preserve=mode "$denoDeps/node_modules" ./node_modules
@@ -98,9 +98,9 @@ denoConfigHook() {
     installDenort
   fi
 
-  patchShebangs .deno
+  patchShebangs "$DENO_DIR"
   patchShebangs node_modules
-  patchShebangs vendor
+  patchShebangs "$vendorDir"
 
   echo "Finished denoConfigHook"
 }

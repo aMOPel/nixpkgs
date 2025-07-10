@@ -62,12 +62,13 @@ let
       denoLockParsed = builtins.fromJSON (builtins.readFile denoLock);
       transformers = {
         "5" = transformDenoLockV5;
+        "4" = transformDenoLockV5;
         "default" =
           assert (lib.assertMsg false "deno lock version not supported");
           null;
       };
     in
-    if transformers ? denoLockParsed.version then
+    if builtins.hasAttr denoLockParsed.version transformers then
       transformers."${denoLockParsed.version}" denoLockParsed hash
     else
       transformers."default";

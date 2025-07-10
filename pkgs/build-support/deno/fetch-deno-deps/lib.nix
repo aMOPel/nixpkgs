@@ -4,6 +4,7 @@
   cacert,
   lib,
   fetchurl,
+  breakpointHook,
 }:
 let
   urlToPath = url: builtins.hashString "sha256" url;
@@ -59,7 +60,7 @@ let
           { outputHash = withOneHash.hash; }
         else
           {
-            outputHash = "";
+            outputHash = lib.fakeSha256;
             outputHashAlgo = "sha256";
           };
 
@@ -73,6 +74,7 @@ let
 
           nativeBuildInputs = [
             curl
+            breakpointHook
           ];
           buildPhase =
             ''
@@ -81,25 +83,29 @@ let
             ''
             + (makeCurlCommands withOneHash.packagesFiles);
 
-          impureEnvVars = lib.fetchers.proxyImpureEnvVars ++ impureEnvVars;
+          # impureEnvVars = lib.fetchers.proxyImpureEnvVars ++ impureEnvVars;
 
           SSL_CERT_FILE =
-            if
-              (
-                hash_.outputHash == ""
-                || hash_.outputHash == lib.fakeSha256
-                || hash_.outputHash == lib.fakeSha512
-                || hash_.outputHash == lib.fakeHash
-              )
-            then
-              "${cacert}/etc/ssl/certs/ca-bundle.crt"
-            else
-              "/no-cert-file.crt";
+              "${cacert}/etc/ssl/certs/ca-bundle.crt";
+            # if
+            #   (
+            #     hash_.outputHash == ""
+            #     || hash_.outputHash == lib.fakeSha256
+            #     || hash_.outputHash == lib.fakeSha512
+            #     || hash_.outputHash == lib.fakeHash
+            #   )
+            # then
+            #   "${cacert}/etc/ssl/certs/ca-bundle.crt"
+            # else
+            #   "/no-cert-file.crt";
 
           outputHashMode = "recursive";
+          outputHash = withOneHash.hash;
+          outputHashAlgo = "sha256";
         }
-        // hash_
+        # // (builtins.trace hash_.outputHash hash_)
         // oneHashFetcherArgs;
+
       packagesFiles' = builtins.map (addOutPath "${derivation}") withOneHash.packagesFiles;
     in
     withOneHash

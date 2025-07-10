@@ -25,13 +25,6 @@
   # In multi user installations of Nix, you need to set the env vars in the daemon (probably with systemd).
   # In nixos: `systemd.services.nix-daemon.environment.NPM_TOKEN = "<token>";`
   denoDepsImpureEnvVars ? [ ],
-  # An attr set with env vars as key value pairs.
-  # Example:
-  # `{ "NPM_TOKEN" = "<token>"; }`
-  # They will be forwarded to `deno install`.
-  # It can be used to set tokens for private NPM registries (in an `.npmrc` file).
-  # You could pass these tokens from the cli with `--arg` (this can make your builds painful).
-  denoDepsInjectedEnvVars ? { },
   # TODO: source overrides like in buildNpmPackage, i.e. injecting nix packages into the denoDeps
   # this is more involved, since they can't directly be injected into the fixed output derivation
   # of fetchDenoDeps. Instead we need to patch the lock file and remove the packages we intend to
@@ -42,13 +35,11 @@
   # It is possible to manipulate the registry.json files of the injected packages so that deno accepts them as is.
   denoDeps ? fetchDenoDeps {
     inherit
-      src
-      denoDepsInjectedEnvVars
-      denoDepsImpureEnvVars
-      denoFlags
       denoDir
+      vendorDir
       ;
-    denoInstallFlags = builtins.filter (e: e != "--cached-only") denoInstallFlags;
+    impureEnvVars = denoDepsImpureEnvVars;
+    denoLock = src + "/deno.lock";
     name = "${name}-deno-deps";
     hash = denoDepsHash;
   },
@@ -70,7 +61,6 @@
   denoCompileFlags ? [ ],
   # Flags to pass to `deno install [denoInstallFlags]`.
   denoInstallFlags ? [
-    "--allow-scripts"
     "--frozen"
     "--cached-only"
   ],
@@ -93,7 +83,9 @@
   # Unquoted string injected after `deno task` and all its flags
   denoTaskSuffix ? "",
   # Used as the name of the local DENO_DIR
-  denoDir ? "./.deno",
+  denoDir ? ".deno",
+  # Used as the name of the local vendor directory
+  vendorDir ? "vendor",
   ...
 }@args:
 let
@@ -144,6 +136,7 @@ stdenvNoCC.mkDerivation (
       hostPlatform_
       denoWorkspacePath
       denoTaskScript
+      vendorDir
       ;
 
     nativeBuildInputs = nativeBuildInputs ++ [
