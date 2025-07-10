@@ -2,7 +2,6 @@
 {
   stdenvNoCC,
   deno,
-  denort,
   diffutils,
   zip,
   jq,
@@ -46,7 +45,7 @@
   # The package used for every deno command in the build
   denoPackage ? deno,
   # The package used as the runtime that is bundled with the the src to create the binary.
-  denortPackage ? denort,
+  denortPackage ? deno,
   # The script to run to build the project.
   # You still need to specify in the installPhase, what artifacts to copy to `$out`.
   denoTaskScript ? "build",
@@ -98,13 +97,15 @@ let
 
   args' = builtins.removeAttrs args [ "denoDepsInjectedEnvVars" ];
 
-  denoHooks =
-    (buildPackages.denoHooks.override {
-      denort = denortPackage;
-    })
-      {
-        inherit denoTaskSuffix denoTaskPrefix binaryEntrypointPath;
-      };
+  denoHooks = buildPackages.denoHooks {
+    inherit
+      denoTaskSuffix
+      denoTaskPrefix
+      binaryEntrypointPath
+      denortPackage
+      ;
+  };
+
   systemLookupTable = {
     "x86_64-darwin" = "x86_64-apple-darwin";
     "arm64-darwin" = "aarch64-apple-darwin";
