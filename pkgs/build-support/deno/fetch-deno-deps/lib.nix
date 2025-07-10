@@ -11,30 +11,42 @@ let
 
   addOutPath = root: file: file // { outPath = "${root}/${urlToPath file.url}"; };
 
-  keepHeaders = [
-    "content-type"
-    "location"
-    "x-deno-warning"
-    "x-typescript-types"
-  ];
-
   headersToRegex =
     headers: builtins.concatStringsSep ''\|'' (builtins.map (header: "^${header}:") headers);
 
   makeCurlCommand =
-    file:
+    { file, keepHeaders }:
     let
       filePath = urlToPath file.url;
       headersRegex = headersToRegex keepHeaders;
+      hasHeaders = keepHeaders != [ ];
+      keepHeadersCurlFlag = lib.optionalString hasHeaders "-D $out/${filePath}-headers";
+      filterHeadersScript = lib.optionalString hasHeaders ''
+        cat $out/${filePath}-headers | grep -i '${headersRegex}' > temp;
+        cat temp > "$out/${filePath}-headers" ;
+      '';
+      curlOpts = lib.optionalString (file ? "curlOpts") file.curlOpts;
+      curlOptsList = builtins.toString (lib.optionals (file ? "curlOptsList") file.curlOptsList);
     in
     ''
-      curl --location --max-redirs 20 --retry 3 --retry-all-errors --continue-at - --disable-epsv --cookie-jar cookies --user-agent "curl/$curlVersion Nixpkgs/$nixpkgsVersion" -D $out/${filePath}-headers -C - --fail "${file.url}" --output $out/"${filePath}";
-      cat $out/${filePath}-headers | grep -i '${headersRegex}' > temp
-      cat temp > "$out/${filePath}-headers" ;
-    '';
+      newcurl=("''${curl[@]}")
+      curlOpts="${curlOpts}";
+      curlOptsList="${curlOptsList}";
+      keepHeaders="${keepHeadersCurlFlag}";
+      eval "newcurl+=($curlOptsList)";
+      newcurl+=(
+          $curlOpts
+          $keepHeaders
+      );
+      "''${newcurl[@]}" -C - --fail "${file.url}" --output $out/"${filePath}";
+    ''
+    + filterHeadersScript;
 
   makeCurlCommands =
-    packagesFiles: builtins.concatStringsSep "\n" (builtins.map makeCurlCommand packagesFiles);
+    { packagesFiles, keepHeaders }:
+    builtins.concatStringsSep "\n" (
+      builtins.map (file: makeCurlCommand { inherit file keepHeaders; }) packagesFiles
+    );
 
   fixHash =
     { hash, algo }:
@@ -51,23 +63,23 @@ let
   oneHashFetcher =
     {
       impureEnvVars ? [ ],
+      keepHeaders ? [ ],
       withOneHash,
       oneHashFetcherArgs,
     }:
     let
-      hash_ =
-        if withOneHash.hash != "" then
-          { outputHash = withOneHash.hash; }
-        else
-          {
-            outputHash = lib.fakeSha256;
-            outputHashAlgo = "sha256";
-          };
-
+      curlOpts = lib.optionalString (withOneHash ? "curlOpts") withOneHash.curlOpts;
+      curlOptsList = lib.optionals (withOneHash ? "curlOptsList") (
+        lib.escapeShellArgs withOneHash.curlOptsList
+      );
       derivation =
         stdenvNoCC.mkDerivation {
-          pname = "fetcher";
-          version = "0";
+          name = "build-helper-fetcher-one-hash";
+
+          inherit
+            curlOptsList
+            curlOpts
+            ;
 
           src = null;
           unpackPhase = "true";
@@ -80,30 +92,55 @@ let
             ''
               mkdir -p $out;
 
+              curlVersion=$(curl -V | head -1 | cut -d' ' -f2)
+
+              # Curl flags to handle redirects, not use EPSV, handle cookies for
+              # servers to need them during redirects, and work on SSL without a
+              # certificate (this isn't a security problem because we check the
+              # cryptographic hash of the output anyway).
+              curl=(
+                  curl
+                  --location
+                  --max-redirs 20
+                  --retry 3
+                  --retry-all-errors
+                  --continue-at -
+                  --disable-epsv
+                  --cookie-jar cookies
+                  --user-agent "curl/$curlVersion Nixpkgs/$nixpkgsVersion"
+              )
+
+              if ! [ -f "$SSL_CERT_FILE" ]; then
+                  curl+=(--insecure)
+              fi
+
+              eval "curl+=($curlOptsList)"
+
+              curl+=(
+                  $curlOpts
+                  $NIX_CURL_FLAGS
+              )
+
             ''
-            + (makeCurlCommands withOneHash.packagesFiles);
+            + (makeCurlCommands {
+              inherit keepHeaders;
+              inherit (withOneHash) packagesFiles;
+            });
 
-          # impureEnvVars = lib.fetchers.proxyImpureEnvVars ++ impureEnvVars;
+          impureEnvVars =
+            lib.fetchers.proxyImpureEnvVars
+            ++ [
+              # This variable allows the user to pass additional options to curl
+              "NIX_CURL_FLAGS"
+            ]
+            ++ impureEnvVars;
 
-          SSL_CERT_FILE =
-              "${cacert}/etc/ssl/certs/ca-bundle.crt";
-            # if
-            #   (
-            #     hash_.outputHash == ""
-            #     || hash_.outputHash == lib.fakeSha256
-            #     || hash_.outputHash == lib.fakeSha512
-            #     || hash_.outputHash == lib.fakeHash
-            #   )
-            # then
-            #   "${cacert}/etc/ssl/certs/ca-bundle.crt"
-            # else
-            #   "/no-cert-file.crt";
+          SSL_CERT_FILE = "${cacert}/etc/ssl/certs/ca-bundle.crt";
 
           outputHashMode = "recursive";
           outputHash = withOneHash.hash;
           outputHashAlgo = "sha256";
         }
-        # // (builtins.trace hash_.outputHash hash_)
         // oneHashFetcherArgs;
 
       packagesFiles' = builtins.map (addOutPath "${derivation}") withOneHash.packagesFiles;
@@ -115,13 +152,19 @@ let
     };
 
   fetchPackageFile =
-    { file, impureEnvVars, fetchurlArgs }:
+    {
+      file,
+      impureEnvVars,
+      fetchurlArgs,
+    }:
     let
-      derivation = fetchurl {
-        url = file.url;
-        hash = file.hash;
-        netrcImpureEnvVars = impureEnvVars;
-      } // fetchurlArgs;
+      derivation =
+        fetchurl {
+          url = file.url;
+          hash = file.hash;
+          netrcImpureEnvVars = impureEnvVars;
+        }
+        // fetchurlArgs;
     in
     file
     // {
@@ -144,7 +187,9 @@ let
       merge =
         key:
         builtins.concatLists (
-          builtins.map (packages: lib.attrsets.attrByPath [ "${key}" "packagesFiles" ] [ ] packages) packagesList
+          builtins.map (
+            packages: lib.attrsets.attrByPath [ "${key}" "packagesFiles" ] [ ] packages
+          ) packagesList
         );
     in
     builtins.mapAttrs (name: value: { packagesFiles = merge name; }) {
@@ -153,12 +198,13 @@ let
       withOneHash = null;
     };
 
-  fetcher =
+  buildHelperFetcher =
     {
       packages,
       impureEnvVars ? "",
       oneHashFetcherArgs ? { },
       fetchurlArgs ? { },
+      keepHeaders ? [ ],
     }:
     let
       hasWithHashPerFile = packages ? withHashPerFile;
@@ -168,7 +214,7 @@ let
 
       withSingleFod = lib.optionalAttrs (hasWithOneHash && hasTopLevelHash && hasPackages) {
         withOneHash = oneHashFetcher {
-          inherit impureEnvVars oneHashFetcherArgs;
+          inherit impureEnvVars oneHashFetcherArgs keepHeaders;
           inherit (packages) withOneHash;
         };
       };
@@ -186,7 +232,7 @@ let
 in
 {
   inherit
-    fetcher
+    buildHelperFetcher
     urlToPath
     fixHash
     toPackagesFilesList

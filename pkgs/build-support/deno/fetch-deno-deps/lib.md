@@ -57,7 +57,7 @@ The proposed interface supports both ways and allows to even combine them.
 A call to the interface looks like this
 
 ```nix
-fetcher packages
+buildHelperFetcher packages
 ```
 
 where `packages` looks like this
@@ -75,14 +75,16 @@ and `schema1` looks like this
 ```nix
 {
     hash = ""; # (optional) top level hash, required for `withOneHash`
-    curlOpts = []; # (optional) global curl opts, passed to all curl calls
+    curlOpts = ""; # (optional) global curl opts, passed to all curl calls
+    curlOptsList = []; # (optional) global curl opts, passed to all curl calls
     meta = { }; # (optional) object of arbitrary shape that is passed through
     # derivation = null; # (filled in by `fetcher`), top level derivation
     packagesFiles = [
       {
         url = ""; # (required)
         # outPath = ""; # (filled in by `fetcher`), `<top level derivation path>/<file path>`
-        curlOpts = []; # (optional) per file curl opts
+        curlOpts = ""; # (optional) global curl opts, passed to all curl calls
+        curlOptsList = []; # (optional) global curl opts, passed to all curl calls
         meta = { # (optional) object of arbitrary shape that is passed through
           packageName = ""; # (example)
           fileName = ""; # (example)
@@ -97,7 +99,8 @@ and `schema2` looks like this
 
 ```nix
 {
-    curlOpts = []; # (optional) global curl opts, passed to all curl calls
+    curlOpts = ""; # (optional) global curl opts, passed to all curl calls
+    curlOptsList = []; # (optional) global curl opts, passed to all curl calls
     meta = { }; # (optional) object of arbitrary shape that is passed through
     packagesFiles = [
       {
@@ -105,7 +108,8 @@ and `schema2` looks like this
         # outPath = ""; # (filled in by `fetcher`), `<file level derivation path>/<file path>`
         # derivation = null; # (filled in by `fetcher`), file level derivation
         hash = ""; # (required)
-        curlOpts = []; # (optional) per file curl opts
+        curlOpts = ""; # (optional) global curl opts, passed to all curl calls
+        curlOptsList = []; # (optional) global curl opts, passed to all curl calls
         meta = { # (optional) object of arbitrary shape that is passed through
           packageName = ""; # (example)
           fileName = ""; # (example)
@@ -151,7 +155,7 @@ same interface.
 With a utility function:
 
 ```nix
-toOneList (fetcher packages)
+toPackagesFilesList (buildHelperFetcher packages)
 ```
 
 the `.packagesFiles` lists are extracted and concatenated,

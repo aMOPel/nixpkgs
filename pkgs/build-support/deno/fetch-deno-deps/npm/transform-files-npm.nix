@@ -48,29 +48,29 @@ let
     "${root}/${parsedPackageSpecifier.name}/${parsedPackageSpecifier.version}";
 
   makePackageCommand =
-    root: package:
+    root: file:
     let
-      outPath = makePackagePath root package.meta.parsedPackageSpecifier;
+      outPath = makePackagePath root file.meta.parsedPackageSpecifier;
     in
     ''
       mkdir -p ${outPath};
-      tar -C ${outPath} -xzf ${package.outPath} --strip-components=1;
+      tar -C ${outPath} -xzf ${file.outPath} --strip-components=1;
     '';
 
   makePackageCommands =
-    root: allPackages:
-    builtins.concatStringsSep "\n" (builtins.map (makePackageCommand root) allPackages);
+    root: allFiles:
+    builtins.concatStringsSep "\n" (builtins.map (makePackageCommand root) allFiles);
 
   transformNpmPackages =
     {
       name,
       topLevelPackages,
-      allPackages,
+      allFiles,
       denoDir,
     }:
     let
       root = "$out/${denoDir}/npm/registry.npmjs.org";
-      cpCommands = makePackageCommands root allPackages;
+      cpCommands = makePackageCommands root allFiles;
       registryJsonCpCommands = makeRegistryJsonCpCommands root topLevelPackages;
     in
     stdenvNoCC.mkDerivation {

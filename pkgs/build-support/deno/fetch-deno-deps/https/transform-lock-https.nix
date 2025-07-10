@@ -41,7 +41,8 @@ let
           };
       };
       pickTransformer =
-        registry: if transformers ? registry then transformers."${registry}" else transformers.default;
+        registry:
+        if builtins.hasAttr registry transformers then transformers."${registry}" else transformers.default;
     in
     (pickTransformer registry) {
       inherit url;

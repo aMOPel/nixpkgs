@@ -6,7 +6,7 @@
 let
   inherit (callPackage ./jsr/transform-files-jsr-and-https.nix { }) transformJsrAndHttpsPackages;
   inherit (callPackage ./npm/transform-files-npm.nix { }) transformNpmPackages;
-  inherit (callPackage ./lib.nix { }) fetcher toPackagesFilesList;
+  inherit (callPackage ./lib.nix { }) buildHelperFetcher toPackagesFilesList;
 
   inherit (callPackage ./jsr/transform-lock-jsr.nix { }) makeJsrPackages;
   inherit (callPackage ./https/transform-lock-https.nix { }) makeHttpsPackages;
@@ -25,12 +25,21 @@ let
       });
 
       httpsParsed = denoLockParsed.remote;
-      httpsPackages =
-        lib.attrsets.optionalAttrs (builtins.hasAttr "remote" denoLockParsed)
-          (makeHttpsPackages {
-            inherit httpsParsed;
-          });
-
+      httpsPackages = lib.attrsets.optionalAttrs (builtins.hasAttr "remote" denoLockParsed) (
+        let
+          httpsPackages' = (
+            makeHttpsPackages {
+              inherit httpsParsed;
+            }
+          );
+        in
+        httpsPackages'
+        // {
+          withOneHash = httpsPackages'.withOneHash // {
+            hash = topLevelHash;
+          };
+        }
+      );
       npmParsed = builtins.mapAttrs (name: value: {
         parsedPackageSpecifier = parsePackageSpecifier name;
         hash = value.integrity;
@@ -48,11 +57,7 @@ let
     in
     {
       jsr = jsrPackages;
-      https = httpsPackages // {
-        withOneHash = httpsPackages.withOneHash // {
-          hash = topLevelHash;
-        };
-      };
+      https = httpsPackages;
       npm = npmPackages;
     };
 
@@ -73,6 +78,14 @@ let
     else
       transformers."default";
 
+  # https://github.com/denoland/deno_cache_dir/blob/0.23.0/rs_lib/src/local.rs#L802
+  keepHeaders = [
+    "content-type"
+    "location"
+    "x-deno-warning"
+    "x-typescript-types"
+  ];
+
 in
 {
   fetchDenoDeps =
@@ -91,30 +104,43 @@ in
 
       fetched = builtins.mapAttrs (
         name: value:
-        fetcher {
+        buildHelperFetcher {
           inherit
             impureEnvVars
             oneHashFetcherArgs
             fetchurlArgs
+            keepHeaders
             ;
           packages = transformedDenoLock."${name}";
         }
       ) transformedDenoLock;
 
-      transformedPackages = {
-        jsrAndHttps =
-          (transformJsrAndHttpsPackages {
-            inherit vendorDir denoDir;
-            allFiles = (toPackagesFilesList fetched.jsr) ++ (toPackagesFilesList fetched.https);
-          }).transformed;
-        npm = (
-          transformNpmPackages {
-            inherit name denoDir;
-            topLevelPackages = fetched.npm.withHashPerFile.meta.topLevelPackages;
-            allPackages = toPackagesFilesList fetched.npm;
-          }
-        );
-      };
+      transformedPackages =
+        let
+          jsrAndHttpsFiles =
+            (lib.optionals (fetched ? "jsr") (toPackagesFilesList fetched.jsr))
+            ++ (lib.optionals (fetched ? "https") (toPackagesFilesList fetched.https));
+          npmFiles = lib.optionals (fetched ? "npm") (toPackagesFilesList fetched.npm);
+        in
+        {
+          jsrAndHttps =
+            if jsrAndHttpsFiles != [ ] then
+              (transformJsrAndHttpsPackages {
+                inherit vendorDir denoDir;
+                allFiles = jsrAndHttpsFiles;
+              }).transformed
+            else
+              "";
+          npm =
+            if npmFiles != [ ] then
+              transformNpmPackages {
+                inherit name denoDir;
+                topLevelPackages = fetched.npm.withHashPerFile.meta.topLevelPackages;
+                allFiles = toPackagesFilesList fetched.npm;
+              }
+            else
+              "";
+        };
 
       final = stdenvNoCC.mkDerivation {
         inherit name;
@@ -124,8 +150,13 @@ in
 
         buildPhase = ''
           mkdir -p $out;
-          cp -r ${transformedPackages.jsrAndHttps}/${vendorDir} $out;
-          cp -r ${transformedPackages.npm}/${denoDir} $out;
+          if [[ -d ${transformedPackages.jsrAndHttps}/${vendorDir} ]]; then
+            cp -r ${transformedPackages.jsrAndHttps}/${vendorDir} $out;
+          fi
+          if [[ -d ${transformedPackages.npm}/${denoDir} ]]; then
+            cp -r ${transformedPackages.npm}/${denoDir} $out;
+          fi
+          cp ${denoLock} $out;
         '';
       };
     in

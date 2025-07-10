@@ -124,7 +124,6 @@ stdenvNoCC.mkDerivation (
   // {
     inherit
       name
-      denoDeps
       src
       denoFlags_
       denoTaskFlags_
@@ -138,6 +137,8 @@ stdenvNoCC.mkDerivation (
       denoTaskScript
       vendorDir
       ;
+
+    denoDeps = denoDeps.final;
 
     nativeBuildInputs = nativeBuildInputs ++ [
       # Prefer passed hooks

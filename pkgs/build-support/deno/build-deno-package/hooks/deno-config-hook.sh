@@ -61,14 +61,12 @@ denoConfigHook() {
 
   echo "Installing dependencies"
 
-  export DENO_DIR="$(pwd)"/"$DENO_DIR"
-
   installDeps() {
     if [[ -d "$denoDeps/$DENO_DIR" ]]; then
       cp -r --no-preserve=mode "$denoDeps/$DENO_DIR" "$DENO_DIR"
     fi
     if [[ -d "$denoDeps/$vendorDir" ]]; then
-      cp -r --no-preserve=mode "$denoDeps/$vendorDir" ./$vendorDir
+      cp -r --no-preserve=mode "$denoDeps/$vendorDir" $vendorDir
     fi
     if [[ -d "$denoDeps/node_modules" ]]; then
       cp -r --no-preserve=mode "$denoDeps/node_modules" ./node_modules
