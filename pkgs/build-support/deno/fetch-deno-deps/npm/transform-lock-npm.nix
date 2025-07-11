@@ -28,15 +28,14 @@ let
     };
 
   makeNpmPackages =
-    { npmTopLevelPackages, npmParsed }:
+    { npmParsed }:
     let
-      npmPackages = builtins.attrValues (builtins.mapAttrs (name: value: makeNpmPackage value) npmParsed);
+      npmPackages = (
+        builtins.attrValues (builtins.mapAttrs (name: value: makeNpmPackage value) npmParsed)
+      );
     in
     {
       withHashPerFile = {
-        meta = {
-          topLevelPackages = npmTopLevelPackages;
-        };
         packagesFiles = npmPackages;
       };
     };

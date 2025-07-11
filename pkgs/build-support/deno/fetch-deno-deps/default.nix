@@ -44,15 +44,8 @@ let
         parsedPackageSpecifier = parsePackageSpecifier name;
         hash = value.integrity;
       }) denoLockParsed.npm;
-      npmTopLevelPackages =
-        builtins.filter (parsedPackageSpecifier: parsedPackageSpecifier.registry == "npm")
-          (
-            builtins.map (packageSpecifier: parsePackageSpecifier packageSpecifier) (
-              builtins.attrNames denoLockParsed.specifiers
-            )
-          );
       npmPackages = lib.attrsets.optionalAttrs (builtins.hasAttr "npm" denoLockParsed) (makeNpmPackages {
-        inherit npmTopLevelPackages npmParsed;
+        inherit npmParsed;
       });
     in
     {
@@ -135,7 +128,6 @@ in
             if npmFiles != [ ] then
               transformNpmPackages {
                 inherit name denoDir;
-                topLevelPackages = fetched.npm.withHashPerFile.meta.topLevelPackages;
                 allFiles = toPackagesFilesList fetched.npm;
               }
             else
