@@ -57,6 +57,9 @@ let
           parsedVersionMetaJson.moduleGraph2
         else
           { };
+      exported = builtins.map (path: lib.strings.removePrefix "." path) (
+        builtins.attrValues parsedVersionMetaJson.exports
+      );
       importers = builtins.attrNames moduleGraph;
       imported = lib.lists.flatten (
         builtins.attrValues (
@@ -96,8 +99,14 @@ let
               value = 0;
             }) imported
           );
+          c = builtins.listToAttrs (
+            builtins.map (v: {
+              name = v;
+              value = 0;
+            }) exported
+          );
         in
-        a // b;
+        a // b // c;
     in
     builtins.mapAttrs (fileName: value: parsedVersionMetaJson.manifest."${fileName}".checksum) union;
 
