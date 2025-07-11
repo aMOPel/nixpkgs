@@ -63,9 +63,21 @@ let
           builtins.mapAttrs (
             name: value:
             let
-              dependencies = if value ? dependencies then value.dependencies else [ ];
+              dependencies = if builtins.hasAttr "dependencies" value then value.dependencies else [ ];
+              basePath = lib.path.subpath.join (
+                lib.lists.dropEnd 1 (lib.path.subpath.components (lib.path.splitRoot (/. + name)).subpath)
+              );
+              hasSpecifier = dep: (dep.type == "static") && (builtins.hasAttr "specifier" dep);
+              isPath = string: (builtins.match "^(\.\./|\./|/).*$" string) != null;
+              getSpecifier = dep: if (hasSpecifier dep) && (isPath dep.specifier) then dep.specifier else null;
+              resolvePath =
+                dep:
+                let
+                  specifier = getSpecifier dep;
+                in
+                if specifier != null then builtins.toString (/. + "${basePath}/${specifier}") else null;
             in
-            builtins.map (dep: lib.strings.removePrefix "." dep.specifier) dependencies
+            builtins.filter (value: value != null) (builtins.map (dep: resolvePath dep) dependencies)
           ) moduleGraph
         )
       );

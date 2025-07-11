@@ -27,7 +27,12 @@ let
     };
 
   makeRegistryJsonPath =
-    root: parsedPackageSpecifier: "${root}/${parsedPackageSpecifier.name}/registry.json";
+    root: parsedPackageSpecifier:
+    let
+      withScope = "${root}/@${parsedPackageSpecifier.scope}/${parsedPackageSpecifier.name}/registry.json";
+      withoutScope = "${root}/${parsedPackageSpecifier.name}/registry.json";
+    in
+    if parsedPackageSpecifier.scope != null then withScope else withoutScope;
 
   makeRegistryJsonCpCommand =
     root: parsedPackageSpecifier:
@@ -45,7 +50,11 @@ let
 
   makePackagePath =
     root: parsedPackageSpecifier:
-    "${root}/${parsedPackageSpecifier.name}/${parsedPackageSpecifier.version}";
+    let
+      withScope = "${root}/@${parsedPackageSpecifier.scope}/${parsedPackageSpecifier.name}/${parsedPackageSpecifier.version}";
+      withoutScope = "${root}/${parsedPackageSpecifier.name}/${parsedPackageSpecifier.version}";
+    in
+    if parsedPackageSpecifier.scope != null then withScope else withoutScope;
 
   makePackageCommand =
     root: file:
@@ -58,8 +67,7 @@ let
     '';
 
   makePackageCommands =
-    root: allFiles:
-    builtins.concatStringsSep "\n" (builtins.map (makePackageCommand root) allFiles);
+    root: allFiles: builtins.concatStringsSep "\n" (builtins.map (makePackageCommand root) allFiles);
 
   transformNpmPackages =
     {
