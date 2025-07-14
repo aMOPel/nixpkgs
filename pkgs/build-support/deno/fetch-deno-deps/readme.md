@@ -164,16 +164,13 @@ but the module graph can also look like this:
 {
   "moduleGraph2": {
     "/prompt_secret.ts": {},
-    "/unicode_width.ts": {
+    "/nested/twice/unicode_width.ts": {
       "dependencies": [
         {
           "type": "static",
           "kind": "import",
           "specifier": "./_data.json",
-          "specifierRange": [
-            [4, 17],
-            [4, 31]
-          ],
+          "specifierRange": [ ... ],
           "importAttributes": {
             "known": {
               "type": "json"
@@ -183,12 +180,26 @@ but the module graph can also look like this:
         {
           "type": "static",
           "kind": "import",
-          "specifier": "./_run_length.ts",
-          "specifierRange": [
-            [5, 32],
-            [5, 50]
-          ]
-        }
+          "specifier": "../../_run_length.ts",
+          "specifierRange": [ ... ]
+        },
+        {
+          "type": "static",
+          "kind": "import",
+          "specifier": "npm:preact@^10.25.1",
+          "specifierRange": [ ... ]
+        },
+        {
+          "type": "static",
+          "kind": "importType",
+          "specifier": "./runtime/server/mod.ts",
+          "specifierRange": [ ... ]
+        },
+        {
+          "type": "dynamic",
+          "argument": "npm:esbuild-wasm@0.23.1",
+          "argumentRange": [ ... ]
+        },
       ]
     },
     "/mod.ts": {
@@ -197,37 +208,25 @@ but the module graph can also look like this:
           "type": "static",
           "kind": "export",
           "specifier": "./parse_args.ts",
-          "specifierRange": [
-            [17, 14],
-            [17, 31]
-          ]
+          "specifierRange": [ ... ]
         },
         {
           "type": "static",
           "kind": "export",
           "specifier": "./prompt_secret.ts",
-          "specifierRange": [
-            [18, 14],
-            [18, 34]
-          ]
+          "specifierRange": [ ... ]
         },
         {
           "type": "static",
           "kind": "export",
           "specifier": "./spinner.ts",
-          "specifierRange": [
-            [19, 14],
-            [19, 28]
-          ]
+          "specifierRange": [ ... ]
         },
         {
           "type": "static",
           "kind": "export",
           "specifier": "./unicode_width.ts",
-          "specifierRange": [
-            [20, 14],
-            [20, 34]
-          ]
+          "specifierRange": [ ... ]
         }
       ]
     },

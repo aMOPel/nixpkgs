@@ -889,14 +889,28 @@ It works by utilizing Deno's cache functionality -- creating a reproducible cach
 For every `buildDenoPackage`, first, a [fixed output derivation](https://nix.dev/manual/nix/2.18/language/advanced-attributes.html#adv-attr-outputHash) is
 created with all the dependencies mentioned in the `deno.lock`.
 This works as follows:
-1. They are installed using `deno install`.
-1. All non-reproducible data is pruned.
-1. The directories `.deno`, `node_modules` and `vendor` are copied to `$out`.
-1. The output of the FOD is checked against the `denoDepsHash`.
+1. The dependencies are fetched using nix and curl. (Read more [here](https://github.com/NixOS/nixpkgs/blob/master/pkgs/build-support/deno/fetch-deno-deps/readme.md))
+1. The fetched files are translated into a format that deno understands and form the output of `fetchDenoDeps`.
 1. The output is copied into the build of `buildDenoPackage`, which is not an FOD.
-1. The dependencies are installed again using `deno install`, this time from the local cache only.
+1. The dependencies are installed again using `deno install`, from the local cache only.
 
-The `buildDenoDeps` derivation is in `passthru`, so it can be accessed from a `buildDenoPackage` derivation with `.denoDeps`
+The `fetchDenoDeps` derivation is in `passthru`, so it can be accessed from a `buildDenoPackage` derivation with `.denoDeps`
+
+Deno differentiates between 3 kinds of dependencies:
+
+- `npm:` from <https://npmjs.com>
+- `jsr:` from <https://jsr.io>
+- `https:` from JavaScript CDNs
+  - `deno.land/x`
+  - `esm.sh`
+  - `unpkg.com`
+
+`fetchDenoDeps` parses the lock file and can use the hashes from it for
+`npm:` and `jsr:` dependencies.
+This means, for those dependencies, you don't need to specify a `denoDepsHash`.
+
+However, if your package uses `https:` dependencies, for technical reasons,
+`fetchDenoDeps` needs the `denoDepsHash`.
 
 Related options:
 
@@ -909,7 +923,6 @@ Related options:
 : The Flags passed to `deno install`.
 
 : _Default:_ `[ "--allow-scripts" "--frozen" "--cached-only" ]` for `buildDenoPackage`
-: _Default:_ `[ "--allow-scripts" "--frozen" ]` for `buildDenoDeps` (`"--cached-only"` is filtered out)
 
 ::: {.tip}
 If you receive errors like these:
@@ -963,7 +976,7 @@ buildDenoPackage {
 :::
 
 #### Private registries {#javascript-buildDenoPackage-private-registries}
-There are currently 2 options, which enable the use of private registries in a `buildDenoPackage` derivation.
+There is currently one options, which enables the use of private registries in a `buildDenoPackage` derivation.
 
 *`denoDepsImpureEnvVars`* (Array of strings; optional)
 
@@ -1005,17 +1018,6 @@ $ sudo systemctl restart nix-daemon
 
 :::
 
-*`denoDepsInjectedEnvVars`* (Attrset; optional)
-
-: Environment variables as key value pairs. They are forwarded to `deno install`.
-
-: _Example:_ `{ "NPM_TOKEN" = "<token>"; }`
-
-: It can be used to set tokens for private NPM registries (in a `.npmrc` file).
-You could pass these tokens from the Nix CLI with `--arg`,
-however this can hurt the reproducibility of your builds and such an injected
-token will also need to be injected in every build that depends on this build.
-
 :::{.example}
 
 ##### example `.npmrc` {#javascript-buildDenoPackage-private-registries-npmrc-example}
@@ -1027,14 +1029,8 @@ token will also need to be injected in every build that depends on this build.
 
 :::
 
-::: {.caution}
-
-Hardcoding a token into your NixOS configuration or some other nix build, will as a consequence write that token into `/nix/store`, which is considered world readable.
-
-:::
-
 ::: {.note}
-Neither approach is ideal. For `buildNpmPackage`, there exists a third
+The approach is not ideal. For `buildNpmPackage`, there exists a third
 option called `sourceOverrides`, which allows the user to inject Nix packages into
 the output `node_modules` folder.
 Since a Nix build implicitly uses the SSH keys of the machine,
@@ -1053,7 +1049,7 @@ The binary will be named like the `.name` property in `deno.json`, if available,
 or the `name` attribute of the derivation.
 
 :::{.caution}
-When using packages with a `npm:` specifier, the resulting binary will not be reproducible.
+It is possible that the deno upstream introduces changes to the `deno compile` command, which break reproducibility.
 See [this issue](https://github.com/denoland/deno/issues/29619) for more information.
 :::
 
