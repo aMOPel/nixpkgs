@@ -1,71 +1,10 @@
-type PackageFileIn = {
-  url: string;
-  hash: string;
-  hashAlgo: string;
-  meta?: any;
-};
-type PackageFileOut = {
-  url: string;
-  hash: string;
-  hashAlgo: string;
-  outPath: string;
-  headers?: Record<string, string>;
-  meta?: any;
-};
-type CommonLockFormatOut = Array<PackageFileOut>;
-type CommonLockFormatIn = Array<PackageFileIn>;
-
-type PackageSpecifier = {
-  fullString: string;
-  registry: string | null;
-  scope: string | null;
-  name: string;
-  version: string;
-  suffix: string | null;
-};
-
-type Config = {
-  pathPrefix: PathString;
-  inPath: PathString;
-  outPathVendored: PathString;
-  outPathNpm: PathString;
-  commonLockfile: CommonLockFormatIn;
-};
-
-type PathString = string;
-type PackageSpecifierString = string;
-type HashString = string;
-type Dependency =
-  | {
-      type: "static";
-      kind: "importType" | "import" | "export";
-      specifier: PathString | PackageSpecifierString;
-      specifierRange: Array<Array<number>>;
-      importAttributes: any;
-    }
-  | {
-      type: "dynamic";
-      argument: PathString | PackageSpecifierString;
-      argumentRange: Array<Array<number>>;
-    };
-
-type VersionMetaJson = {
-  manifest: { [filePath: PathString]: { size: number; checksum: HashString } };
-  moduleGraph2: {
-    [filePath: PathString]: { dependencies?: Array<Dependency> };
-  };
-  moduleGraph1: {
-    [filePath: PathString]: { dependencies?: Array<Dependency> };
-  };
-  exports: { [filePath: PathString]: PathString };
-};
-
+type Config = SingleFodFetcherConfig;
 function getConfig(): Config {
   const flagsParsed = {
     "in-path": "",
     "out-path-vendored": "",
     "out-path-npm": "",
-    "path-prefix": "",
+    "out-path-prefix": "",
   };
   const flags = Object.keys(flagsParsed).map((v) => "--" + v);
   Deno.args.forEach((arg, index) => {
@@ -90,8 +29,12 @@ function getConfig(): Config {
     outPathVendored: flagsParsed["out-path-vendored"],
     outPathNpm: flagsParsed["out-path-npm"],
     inPath: flagsParsed["in-path"],
-    pathPrefix: flagsParsed["path-prefix"] || "",
+    outPathPrefix: flagsParsed["out-path-prefix"] || "",
   };
+}
+
+function addPrefix(p: PathString, prefix: PathString): PathString {
+  return prefix !== "" ? prefix + "/" + p : p;
 }
 
 function makeJsrPackageFileUrl(
@@ -129,7 +72,7 @@ async function fetchDefault(
   let outPath = outPath_;
   if (outPath === undefined) {
     outPath = await makeOutPath(p);
-    outPath = `${config.pathPrefix}/${outPath}`;
+    outPath = addPrefix(outPath, config.outPathPrefix);
   }
   const file = await Deno.open(outPath, {
     write: true,
@@ -218,12 +161,12 @@ async function makeMetaJson(
   const metaJson: PackageFileOut = {
     url: metaJsonUrl,
     hash: "",
-    hashAlgo: "",
+    hashAlgo: "sha256",
     outPath: "",
     meta: structuredClone(versionMetaJson.meta),
   };
   metaJson.outPath = await makeOutPath(metaJson);
-  metaJson.outPath = `${config.pathPrefix}/${metaJson.outPath}`;
+  metaJson.outPath = addPrefix(metaJson.outPath, config.outPathPrefix);
 
   const data = new TextEncoder().encode(
     JSON.stringify({
@@ -262,6 +205,7 @@ function normalizeUnixPath(path: PathString): PathString {
 function isPath(s: string): boolean {
   return s.startsWith("./") || s.startsWith("../") || s.startsWith("/");
 }
+
 async function getFilesAndHashesUsingModuleGraph(
   versionMetaJson: PackageFileOut,
 ): Promise<Record<string, string>> {
@@ -303,6 +247,7 @@ async function getFilesAndHashesUsingModuleGraph(
     });
   });
   const all = importers.concat(exporters).concat(imported);
+
   const set = new Set(all);
   const result: Record<string, string> = {};
   Array.from(set).forEach(
@@ -322,7 +267,7 @@ async function fetchJsrPackageFiles(
     throw `packageSpecifier required but not found in ${JSON.stringify(versionMetaJson)}`;
   }
   const files = await getFilesAndHashesUsingModuleGraph(versionMetaJson);
-  Object.entries(files).forEach(async ([filePath, hash]) => {
+  for await (const [filePath, hash] of Object.entries(files)) {
     const packageFile: PackageFileIn = {
       url: makeJsrPackageFileUrl(packageSpecifier, filePath),
       hash,
@@ -330,7 +275,10 @@ async function fetchJsrPackageFiles(
       meta: { packageSpecifier },
     };
     result.push(await fetchDefault(config, packageFile));
-  });
+  }
+  // if (versionMetaJson.meta.packageSpecifier.name === "astral") {
+  //   console.log(result);
+  // }
   return result;
 }
 
@@ -338,32 +286,10 @@ async function fetchJsr(
   config: Config,
   versionMetaJson: PackageFileIn,
 ): Promise<Array<PackageFileOut>> {
-  const result: Array<PackageFileOut> = [];
+  let result: Array<PackageFileOut> = [];
   result[0] = await fetchVersionMetaJson(config, versionMetaJson);
   result[1] = await makeMetaJson(config, versionMetaJson);
-  result.concat(await fetchJsrPackageFiles(config, result[0]));
-  return result;
-}
-
-async function fetchNpm(
-  config: Config,
-  p: PackageFileIn,
-): Promise<Array<PackageFileOut>> {
-  const result: Array<PackageFileOut> = [];
-  const tempFilePath = "package.tgz";
-  const packageFileOut = await fetchDefault(config, p, tempFilePath);
-  let outPath = await makeOutPath(p);
-  outPath = `${config.pathPrefix}/${outPath}`;
-  await Deno.mkdir(outPath, { recursive: true });
-  const command = new Deno.Command("tar", {
-    args: ["-C", outPath, "-xzf", tempFilePath, "--strip-components=1"],
-  });
-  await command.output();
-
-  result.push({
-    ...packageFileOut,
-    outPath,
-  });
+  result = result.concat(await fetchJsrPackageFiles(config, result[0]));
   return result;
 }
 
@@ -374,7 +300,7 @@ async function fetchAll(config: Config): Promise<Lockfiles> {
     (c: Config, p: PackageFileIn) => Promise<Array<PackageFileOut>>
   > = {
     jsr: fetchJsr,
-    npm: fetchNpm,
+    npm: async (c: Config, p: PackageFileIn) => [await fetchDefault(c, p)],
     default: fetchDefaultWithTypes,
   };
 
@@ -405,15 +331,15 @@ async function fetchAll(config: Config): Promise<Lockfiles> {
 
 async function main() {
   const config = getConfig();
-  await Deno.mkdir(config.pathPrefix, { recursive: true });
+  await Deno.mkdir(config.outPathPrefix, { recursive: true });
   const lockfiles = await fetchAll(config);
   await Deno.writeTextFile(
-    `${config.pathPrefix}/${config.outPathVendored}`,
+    addPrefix(config.outPathVendored, config.outPathPrefix),
     JSON.stringify(lockfiles.vendor),
     { create: true },
   );
   await Deno.writeTextFile(
-    `${config.pathPrefix}/${config.outPathNpm}`,
+    addPrefix(config.outPathNpm, config.outPathPrefix),
     JSON.stringify(lockfiles.npm),
     { create: true },
   );

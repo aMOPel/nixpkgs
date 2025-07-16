@@ -1,59 +1,4 @@
-type PackageFile = {
-  url: string;
-  hash: string;
-  hashAlgo: string;
-  meta?: any;
-};
-type CommonLockFormat = Array<PackageFile>;
-
-type Config = {
-  inPath: string;
-  outPath: string;
-  lockfile: DenoLock;
-};
-
-type RegistryPackageSpecifierString = string;
-type PackageSpecifierString = string;
-type VersionString = string;
-type UrlString = string;
-type Sha512String = string;
-type Sha256String = string;
-
-type NpmPackages = {
-  [p: PackageSpecifierString]: {
-    integrity: Sha512String;
-    os?: Array<string>;
-    cpu?: Array<string>;
-    dependencies: Array<PackageSpecifierString>;
-    optionalDependencies: Array<PackageSpecifierString>;
-    bin?: boolean;
-    scripts?: boolean;
-  };
-};
-type JsrPackages = {
-  [p: PackageSpecifierString]: {
-    integrity: Sha256String;
-    dependencies: Array<PackageSpecifierString>;
-  };
-};
-type HttpsPackages = {
-  [url: UrlString]: Sha256String;
-};
-// Rough type modelling of the lock file
-type DenoLock = {
-  specifiers: Record<RegistryPackageSpecifierString, VersionString>;
-  version: "3" | "4" | "5";
-  jsr: JsrPackages;
-  npm: NpmPackages;
-  redirects: {
-    [p: UrlString]: UrlString;
-  };
-  remote: HttpsPackages;
-  workspace: {
-    dependencies: Array<RegistryPackageSpecifierString>;
-  };
-};
-
+type Config = LockfileTransformerConfig
 function getConfig(): Config {
   const flagsParsed = {
     "in-path": "",
@@ -84,15 +29,6 @@ function getConfig(): Config {
   };
 }
 
-type PackageSpecifier = {
-  fullString: string;
-  registry: string | null;
-  scope: string | null;
-  name: string;
-  version: string;
-  suffix: string | null;
-};
-
 function parsePackageSpecifier(fullString: string): PackageSpecifier {
   const matches = fullString.match(/^((.+):)?(@(.+)\/)?(.+)$/);
   if (!matches) {
@@ -122,8 +58,8 @@ function makeNpmPackageUrl(packageSpecifier: PackageSpecifier): UrlString {
   return packageSpecifier.scope === null ? withoutScope : withScope;
 }
 
-function makeJsrCommonLock(denolock: DenoLock): CommonLockFormat {
-  const result: CommonLockFormat = [];
+function makeJsrCommonLock(denolock: DenoLock): CommonLockFormatIn {
+  const result: CommonLockFormatIn = [];
   Object.entries(denolock.jsr).forEach(([key, value]) => {
     const packageSpecifier = parsePackageSpecifier(key);
     const registry = "jsr";
@@ -144,8 +80,8 @@ function makeJsrCommonLock(denolock: DenoLock): CommonLockFormat {
   return result;
 }
 
-function makeNpmCommonLock(denolock: DenoLock): CommonLockFormat {
-  const result: CommonLockFormat = [];
+function makeNpmCommonLock(denolock: DenoLock): CommonLockFormatIn {
+  const result: CommonLockFormatIn = [];
   Object.entries(denolock.npm).forEach(([key, value]) => {
     const packageSpecifier = parsePackageSpecifier(key);
     const registry = "npm";
@@ -170,9 +106,9 @@ function getRegistry(url: UrlString): string {
   return new URL(url).host;
 }
 
-function transformHttpsPackageFile(p: PackageFile): PackageFile {
-  const transformers: Record<string, (p: PackageFile) => PackageFile> = {
-    "esm.sh": function (p: PackageFile): PackageFile {
+function transformHttpsPackageFile(p: PackageFileIn): PackageFileIn {
+  const transformers: Record<string, (p: PackageFileIn) => PackageFileIn> = {
+    "esm.sh": function (p: PackageFileIn): PackageFileIn {
       const result = structuredClone(p);
       const url = new URL(result.url);
       if (!url.searchParams.has("target")) {
@@ -181,11 +117,11 @@ function transformHttpsPackageFile(p: PackageFile): PackageFile {
       result.url = url.toString();
       return result;
     },
-    default: function (p: PackageFile): PackageFile {
+    default: function (p: PackageFileIn): PackageFileIn {
       return p;
     },
   };
-  function pickTransformer(p: PackageFile): PackageFile {
+  function pickTransformer(p: PackageFileIn): PackageFileIn {
     const transformer =
       transformers[p.meta.registry] || transformers["default"];
     return transformer(p);
@@ -193,8 +129,8 @@ function transformHttpsPackageFile(p: PackageFile): PackageFile {
   return pickTransformer(p);
 }
 
-function makeHttpsCommonLock(denolock: DenoLock): CommonLockFormat {
-  const result: CommonLockFormat = [];
+function makeHttpsCommonLock(denolock: DenoLock): CommonLockFormatIn {
+  const result: CommonLockFormatIn = [];
   Object.entries(denolock.remote).forEach(([url, hash]) => {
     const registry = getRegistry(url);
     const hashAlgo = "sha256";
@@ -212,8 +148,8 @@ function makeHttpsCommonLock(denolock: DenoLock): CommonLockFormat {
   return result;
 }
 
-function transformLock(denolock: DenoLock): CommonLockFormat {
-  let result: CommonLockFormat = [];
+function transformLock(denolock: DenoLock): CommonLockFormatIn {
+  let result: CommonLockFormatIn = [];
   result = result.concat(makeJsrCommonLock(denolock));
   result = result.concat(makeNpmCommonLock(denolock));
   result = result.concat(makeHttpsCommonLock(denolock));
