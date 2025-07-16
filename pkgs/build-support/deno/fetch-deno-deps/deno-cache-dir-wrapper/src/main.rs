@@ -13,10 +13,14 @@ use sys_traits::impls::RealSys;
 use url::Url;
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all(deserialize = "camelCase"))]
 struct UrlFile {
     url: String,
     out_path: PathBuf,
     headers: Option<HashMap<String, String>>,
+    //hash: String,
+    //hashAlgo: String,
+    //meta: Option<Value>,
 }
 
 #[derive(Parser, Debug)]

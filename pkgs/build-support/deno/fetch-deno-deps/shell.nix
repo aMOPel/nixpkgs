@@ -3,7 +3,7 @@ let
 
 in
 pkgs.mkShell {
-  buildInputs = [ pkgs.deno ];
+  buildInputs = [ pkgs.deno pkgs.rustup ];
 
   DENO_DIR="./.deno";
   shellHook = ''
