@@ -37,7 +37,7 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let mut url_file = File::open(args.url_file_map).context("failed to open URL file map")?;
+    let mut url_file = File::open(args.url_file_map.clone()).context("failed to open URL file map")?;
     let files: Vec<UrlFile> =
         serde_json::from_reader(&mut url_file).context("failed to parse URL map")?;
 
@@ -50,8 +50,9 @@ fn main() -> Result<()> {
         Url::parse("https://jsr.io/").unwrap(),
     );
 
+    let base_path = args.url_file_map.parent().context("oh no").unwrap();
     for file in files {
-        let content = fs::read(&file.out_path)
+        let content = fs::read(base_path.join(&file.out_path))
             .with_context(|| format!("failed to read file {}", file.out_path.display()))?;
         let url =
             Url::parse(&file.url).with_context(|| format!("failed to parse URL {}", file.url))?;

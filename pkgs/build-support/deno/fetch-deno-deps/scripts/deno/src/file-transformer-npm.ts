@@ -1,3 +1,5 @@
+import { addPrefix, getScopedName } from "./utils.ts";
+
 type Config = FileTransformerNpmConfig
 function getConfig(): Config {
   const flagsParsed = {
@@ -26,6 +28,7 @@ function getConfig(): Config {
     ),
     cachePath: flagsParsed["cache-path"],
     inPath: flagsParsed["in-path"],
+    inBasePath: flagsParsed["in-path"].split("/").slice(0,-1).join("/"),
     rootPath: `${flagsParsed["cache-path"]}/npm/registry.npmjs.org`,
   };
 }
@@ -53,18 +56,14 @@ function makeRegistryJsonPath(
   root: PathString,
   packageSpecifier: PackageSpecifier,
 ): PathString {
-  const withScope = `${root}/@${packageSpecifier.scope}/${packageSpecifier.name}/registry.json`;
-  const withoutScope = `${root}/${packageSpecifier.name}/registry.json`;
-  return packageSpecifier.scope != null ? withScope : withoutScope;
+  return `${root}/${getScopedName(packageSpecifier)}/registry.json`;
 }
 
 function makePackagePath(
   root: PathString,
   packageSpecifier: PackageSpecifier,
 ): PathString {
-  const withScope = `${root}/@${packageSpecifier.scope}/${packageSpecifier.name}/${packageSpecifier.version}`;
-  const withoutScope = `${root}/${packageSpecifier.name}/${packageSpecifier.version}`;
-  return packageSpecifier.scope != null ? withScope : withoutScope;
+  return `${root}/${getScopedName(packageSpecifier)}/${packageSpecifier.version}`;
 }
 
 async function unpackPackage(
@@ -97,7 +96,7 @@ async function transformFilesNpm(config: Config) {
     if (!packageSpecifier) {
       throw `packageSpecifier required but not found in ${JSON.stringify(packageFile)}`;
     }
-    await unpackPackage(config, packageSpecifier, packageFile.outPath);
+    await unpackPackage(config, packageSpecifier, addPrefix(config.inBasePath, packageFile.outPath));
     await writeRegistryJson(config, packageSpecifier);
   }
 }

@@ -8,7 +8,12 @@
   fetchDenoDeps,
   buildPackages,
   lib,
+  callPackage,
 }:
+let
+  vendorJsonName = "vendor.json";
+  npmJsonName = "npm.json";
+in
 {
   name ? "${args.pname}-${args.version}",
   src ? null,
@@ -34,8 +39,8 @@
   # It is possible to manipulate the registry.json files of the injected packages so that deno accepts them as is.
   denoDeps ? fetchDenoDeps {
     inherit
-      denoDir
-      vendorDir
+      vendorJsonName
+      npmJsonName
       ;
     impureEnvVars = denoDepsImpureEnvVars;
     denoLock = src + "/deno.lock";
@@ -88,6 +93,10 @@
   ...
 }@args:
 let
+
+  inherit (callPackage ../fetch-deno-deps/scripts/deno/default.nix { }) fetch-deno-deps-scripts;
+  inherit (callPackage ../fetch-deno-deps/scripts/rust/deno-cache-dir-wrapper/default.nix { }) deno-cache-dir-wrapper;
+
   denoFlags_ = builtins.concatStringsSep " " denoFlags;
   denoTaskFlags_ = builtins.concatStringsSep " " denoTaskFlags;
   denoCompileFlags_ = builtins.concatStringsSep " " denoCompileFlags;
@@ -137,9 +146,11 @@ stdenvNoCC.mkDerivation (
       denoWorkspacePath
       denoTaskScript
       vendorDir
+      vendorJsonName
+      npmJsonName
       ;
 
-    denoDeps = denoDeps.final;
+    denoDeps = denoDeps.fetched;
 
     nativeBuildInputs = nativeBuildInputs ++ [
       # Prefer passed hooks
@@ -150,6 +161,8 @@ stdenvNoCC.mkDerivation (
       diffutils
       zip
       jq
+      fetch-deno-deps-scripts
+      deno-cache-dir-wrapper
     ];
 
     DENO_DIR = denoDir;

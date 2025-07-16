@@ -1,3 +1,5 @@
+import { getScopedName } from "./utils.ts";
+
 type Config = LockfileTransformerConfig
 function getConfig(): Config {
   const flagsParsed = {
@@ -49,13 +51,11 @@ function parsePackageSpecifier(fullString: string): PackageSpecifier {
 }
 
 function makeVersionMetaJsonUrl(packageSpecifier: PackageSpecifier): UrlString {
-  return `https://jsr.io/@${packageSpecifier.scope}/${packageSpecifier.name}/${packageSpecifier.version}_meta.json`;
+  return `https://jsr.io/${getScopedName(packageSpecifier)}/${packageSpecifier.version}_meta.json`;
 }
 
 function makeNpmPackageUrl(packageSpecifier: PackageSpecifier): UrlString {
-  const withScope = `https://registry.npmjs.org/@${packageSpecifier.scope}/${packageSpecifier.name}/-/${packageSpecifier.name}-${packageSpecifier.version}.tgz`;
-  const withoutScope = `https://registry.npmjs.org/${packageSpecifier.name}/-/${packageSpecifier.name}-${packageSpecifier.version}.tgz`;
-  return packageSpecifier.scope === null ? withoutScope : withScope;
+  return `https://registry.npmjs.org/${getScopedName(packageSpecifier)}/-/${packageSpecifier.name}-${packageSpecifier.version}.tgz`;
 }
 
 function makeJsrCommonLock(denolock: DenoLock): CommonLockFormatIn {

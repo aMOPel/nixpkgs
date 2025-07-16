@@ -1,3 +1,9 @@
+// TODO: use the hashes from the lockfile to verify integrity of downloads,
+// the problem is that the hashes use different encoding schemes, while `fetch`
+// expects a specific one, so some translation needs to happen, without any from the network.
+
+import { addPrefix, fileExists, getRegistryScopedNameVersion, getScopedName } from "./utils.ts";
+
 type Config = SingleFodFetcherConfig;
 function getConfig(): Config {
   const flagsParsed = {
@@ -22,9 +28,7 @@ function getConfig(): Config {
 
   return {
     commonLockfile: JSON.parse(
-      new TextDecoder("utf-8").decode(
-        Deno.readFileSync(flagsParsed["in-path"]),
-      ),
+      new TextDecoder().decode(Deno.readFileSync(flagsParsed["in-path"])),
     ),
     outPathVendored: flagsParsed["out-path-vendored"],
     outPathNpm: flagsParsed["out-path-npm"],
@@ -33,19 +37,15 @@ function getConfig(): Config {
   };
 }
 
-function addPrefix(p: PathString, prefix: PathString): PathString {
-  return prefix !== "" ? prefix + "/" + p : p;
-}
-
 function makeJsrPackageFileUrl(
   packageSpecifier: PackageSpecifier,
   filePath: string,
 ): string {
-  return `https://jsr.io/@${packageSpecifier.scope}/${packageSpecifier.name}/${packageSpecifier.version}${filePath}`;
+  return `https://jsr.io/${getScopedName(packageSpecifier)}/${packageSpecifier.version}${filePath}`;
 }
 
 function makeMetaJsonUrl(packageSpecifier: PackageSpecifier): string {
-  return `https://jsr.io/@${packageSpecifier.scope}/${packageSpecifier.name}/meta.json`;
+  return `https://jsr.io/${getScopedName(packageSpecifier)}/meta.json`;
 }
 
 async function makeOutPath(p: PackageFileIn): Promise<string> {
@@ -72,9 +72,8 @@ async function fetchDefault(
   let outPath = outPath_;
   if (outPath === undefined) {
     outPath = await makeOutPath(p);
-    outPath = addPrefix(outPath, config.outPathPrefix);
   }
-  const file = await Deno.open(outPath, {
+  const file = await Deno.open(addPrefix(outPath, config.outPathPrefix), {
     write: true,
     create: true,
     truncate: true,
@@ -148,6 +147,19 @@ async function fetchVersionMetaJson(
   return await fetchDefault(config, versionMetaJson);
 }
 
+function makeMetaJsonContent(packageSpecifier: PackageSpecifier): MetaJson {
+  if (!packageSpecifier.scope) {
+    throw `jsr package has no scope ${JSON.stringify(packageSpecifier)}`;
+  }
+
+  return {
+    name: packageSpecifier.name,
+    scope: packageSpecifier.scope,
+    latest: packageSpecifier.version,
+    versions: { [packageSpecifier.version]: {} },
+  };
+}
+
 async function makeMetaJson(
   config: Config,
   versionMetaJson: PackageFileIn,
@@ -166,17 +178,22 @@ async function makeMetaJson(
     meta: structuredClone(versionMetaJson.meta),
   };
   metaJson.outPath = await makeOutPath(metaJson);
-  metaJson.outPath = addPrefix(metaJson.outPath, config.outPathPrefix);
 
-  const data = new TextEncoder().encode(
-    JSON.stringify({
-      name: packageSpecifier.name,
-      scope: packageSpecifier.scope,
-      latest: packageSpecifier.version,
-      versions: { [packageSpecifier.version]: {} },
-    }),
+  const content = makeMetaJsonContent(packageSpecifier);
+  const path = addPrefix(metaJson.outPath, config.outPathPrefix);
+
+  if (await fileExists(path)) {
+    const existingMetaJson = JSON.parse(
+      new TextDecoder().decode(await Deno.readFile(path)),
+    );
+    content.versions = { ...existingMetaJson.versions, ...content.versions };
+  }
+
+  await Deno.writeFile(
+    addPrefix(metaJson.outPath, config.outPathPrefix),
+    new TextEncoder().encode(JSON.stringify(content)),
+    { create: true },
   );
-  await Deno.writeFile(metaJson.outPath, data, { create: true });
 
   return metaJson;
 }
@@ -207,10 +224,13 @@ function isPath(s: string): boolean {
 }
 
 async function getFilesAndHashesUsingModuleGraph(
+  config: Config,
   versionMetaJson: PackageFileOut,
 ): Promise<Record<string, string>> {
   const parsedVersionMetaJson: VersionMetaJson = JSON.parse(
-    await Deno.readTextFile(versionMetaJson.outPath),
+    await Deno.readTextFile(
+      addPrefix(versionMetaJson.outPath, config.outPathPrefix),
+    ),
   );
   const moduleGraph =
     parsedVersionMetaJson["moduleGraph1"] ||
@@ -266,7 +286,10 @@ async function fetchJsrPackageFiles(
   if (!packageSpecifier) {
     throw `packageSpecifier required but not found in ${JSON.stringify(versionMetaJson)}`;
   }
-  const files = await getFilesAndHashesUsingModuleGraph(versionMetaJson);
+  const files = await getFilesAndHashesUsingModuleGraph(
+    config,
+    versionMetaJson,
+  );
   for await (const [filePath, hash] of Object.entries(files)) {
     const packageFile: PackageFileIn = {
       url: makeJsrPackageFileUrl(packageSpecifier, filePath),
@@ -315,6 +338,9 @@ async function fetchAll(config: Config): Promise<Lockfiles> {
   };
 
   for await (const packageFile of config.commonLockfile) {
+    const packageSpecifier = packageFile?.meta?.packageSpecifier;
+    const nameOrUrl = packageSpecifier ? getRegistryScopedNameVersion(packageSpecifier) : packageFile.url;
+    console.log(`fetching ${nameOrUrl}`);
     const registry = packageFile?.meta?.registry;
     if (!registry) {
       throw `registry required but not given in '${JSON.stringify(packageFile)}'`;

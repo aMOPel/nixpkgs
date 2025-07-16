@@ -6,6 +6,7 @@ type LockfileTransformerConfig = {
 
 type FileTransformerNpmConfig = {
   inPath: PathString;
+  inBasePath: PathString;
   cachePath: PathString;
   commonLockfile: CommonLockFormatOut;
   rootPath: PathString;
@@ -37,14 +38,14 @@ type HashString = string;
 type PackageFileIn = {
   url: UrlString;
   hash: HashString;
-  hashAlgo: "sha256"|"sha512";
+  hashAlgo: "sha256" | "sha512";
   meta?: any;
 };
 
 type PackageFileOut = {
   url: UrlString;
   hash: HashString;
-  hashAlgo: "sha256"|"sha512";
+  hashAlgo: "sha256" | "sha512";
   outPath: PathString;
   headers?: Record<string, string>;
   meta?: any;
@@ -80,6 +81,13 @@ type VersionMetaJson = {
     [filePath: PathString]: { dependencies?: Array<Dependency> };
   };
   exports: { [filePath: PathString]: PathString };
+};
+
+type MetaJson = {
+  name: string;
+  scope: string;
+  latest: string;
+  versions: { [version: string]: Record<PropertyKey, never> };
 };
 
 // ==============
@@ -124,4 +132,3 @@ type DenoLock = {
     dependencies: Array<RegistryPackageSpecifierString>;
   };
 };
-
