@@ -33,23 +33,12 @@ function getConfig(): Config {
   };
 }
 
-// deno uses a subset of the json file available at `https://registry.npmjs.org/<packageName>` and calls it registry.json
-// here we construct a registry.json file from the information we have. we only use the bare minimum of necessary keys and values.
-function makeRegistryJsonContent(packageSpecifier: PackageSpecifier) {
-  return {
-    name: packageSpecifier.name,
-    "dist-tags": {},
-    "_deno.etag": "",
-    versions: {
-      [packageSpecifier.version]: {
-        version: packageSpecifier.version,
-        dist: {
-          tarball: "",
-        },
-        bin: {},
-      },
-    },
-  };
+
+function makePackagePath(
+  root: PathString,
+  packageSpecifier: PackageSpecifier,
+): PathString {
+  return `${root}/${getScopedName(packageSpecifier)}/${packageSpecifier.version}`;
 }
 
 function makeRegistryJsonPath(
@@ -57,13 +46,6 @@ function makeRegistryJsonPath(
   packageSpecifier: PackageSpecifier,
 ): PathString {
   return `${root}/${getScopedName(packageSpecifier)}/registry.json`;
-}
-
-function makePackagePath(
-  root: PathString,
-  packageSpecifier: PackageSpecifier,
-): PathString {
-  return `${root}/${getScopedName(packageSpecifier)}/${packageSpecifier.version}`;
 }
 
 async function unpackPackage(
@@ -79,17 +61,6 @@ async function unpackPackage(
   await command.output();
 }
 
-async function writeRegistryJson(
-  config: Config,
-  packageSpecifier: PackageSpecifier,
-) {
-  const outPath = makeRegistryJsonPath(config.rootPath, packageSpecifier);
-  const content = new TextEncoder().encode(
-    JSON.stringify(makeRegistryJsonContent(packageSpecifier)),
-  );
-  await Deno.writeFile(outPath, content, { create: true });
-}
-
 async function transformFilesNpm(config: Config) {
   for await (const packageFile of config.commonLockfile) {
     const packageSpecifier = packageFile?.meta?.packageSpecifier;
@@ -97,7 +68,9 @@ async function transformFilesNpm(config: Config) {
       throw `packageSpecifier required but not found in ${JSON.stringify(packageFile)}`;
     }
     await unpackPackage(config, packageSpecifier, addPrefix(config.inBasePath, packageFile.outPath));
-    await writeRegistryJson(config, packageSpecifier);
+    // TODO: handle registry josn files differently
+
+    const outPath = makeRegistryJsonPath(config.rootPath, packageSpecifier);
   }
 }
 

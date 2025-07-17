@@ -11,9 +11,9 @@ in
   fetch-deno-deps-scripts =
     let
       scripts = {
-        lockfile-transformer = "./src/lockfile-transformer.ts";
-        single-fod-fetcher = "./src/single-fod-fetcher.ts";
-        file-transformer-npm = "./src/file-transformer-npm.ts";
+        lockfile-transformer = "./src/lockfile-transformer/lockfile-transformer.ts";
+        single-fod-fetcher = "./src/fetcher/single-fod-fetcher.ts";
+        file-transformer-npm = "./src/file-transformer/file-transformer-npm.ts";
       };
       wrappers = builtins.concatStringsSep "\n" (
         builtins.attrValues (

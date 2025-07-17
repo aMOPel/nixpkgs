@@ -1,4 +1,4 @@
-import { getScopedName } from "./utils.ts";
+import { getScopedName } from "../utils.ts";
 
 type Config = LockfileTransformerConfig
 function getConfig(): Config {

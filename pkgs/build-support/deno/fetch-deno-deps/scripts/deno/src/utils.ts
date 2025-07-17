@@ -34,3 +34,29 @@ export function getRegistryScopedNameVersion(
   const withoutRegistry = getScopedNameVersion(packageSpecifier);
   return packageSpecifier.registry != null ? withRegistry : withoutRegistry;
 }
+
+export function isPath(s: string): boolean {
+  return s.startsWith("./") || s.startsWith("../") || s.startsWith("/");
+}
+
+export function normalizeUnixPath(path: PathString): PathString {
+  const segments = path.split("/");
+  const stack = [];
+  for (const segment of segments) {
+    if (segment === "" || segment === ".") {
+      continue;
+    }
+    if (segment === "..") {
+      if (stack.length && stack[stack.length - 1] !== "..") {
+        stack.pop();
+      } else {
+        stack.push("..");
+      }
+    } else {
+      stack.push(segment);
+    }
+  }
+  const isAbsolute = path.startsWith("/");
+  return (isAbsolute ? "/" : "") + stack.join("/");
+}
+
