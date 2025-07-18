@@ -1,5 +1,11 @@
 import { fetchDefault, makeOutPath } from "./fetch-default.ts";
-import { addPrefix, fileExists, getScopedName, isPath, normalizeUnixPath } from "../utils.ts";
+import {
+  addPrefix,
+  fileExists,
+  getScopedName,
+  isPath,
+  normalizeUnixPath,
+} from "../utils.ts";
 
 type Config = SingleFodFetcherConfig;
 function makeJsrPackageFileUrl(
@@ -33,11 +39,15 @@ function makeMetaJsonContent(packageSpecifier: PackageSpecifier): MetaJson {
   };
 }
 
+// TODO: this will merge existing meta.json version, which is good,
+// but it wont merge meta.packageSpecifiers, but override,
+// and it will create 2 entries in final lockfile
+// TODO: same for registry.json
 async function makeMetaJson(
   config: Config,
   versionMetaJson: PackageFileIn,
   packageSpecifier: PackageSpecifier,
-): Promise<PackageFileOut> {
+): Promise<PackageFileOut | null> {
   const metaJsonUrl = makeMetaJsonUrl(packageSpecifier);
 
   const metaJson: PackageFileOut = {
@@ -57,13 +67,13 @@ async function makeMetaJson(
       new TextDecoder().decode(await Deno.readFile(path)),
     );
     content.versions = { ...existingMetaJson.versions, ...content.versions };
+    const data = new TextEncoder().encode(JSON.stringify(content));
+    await Deno.writeFile(path, data, { create: true });
+    return null;
   }
 
-  await Deno.writeFile(
-    addPrefix(metaJson.outPath, config.outPathPrefix),
-    new TextEncoder().encode(JSON.stringify(content)),
-    { create: true },
-  );
+  const data = new TextEncoder().encode(JSON.stringify(content));
+  await Deno.writeFile(path, data, { create: true });
 
   return metaJson;
 }
@@ -154,8 +164,18 @@ export async function fetchJsr(
   }
   let result: Array<PackageFileOut> = [];
   result[0] = await fetchVersionMetaJson(config, versionMetaJson);
-  result[1] = await makeMetaJson(config, versionMetaJson, packageSpecifier);
-  result = result.concat(await fetchJsrPackageFiles(config, result[0], packageSpecifier));
+
+  const metaJson = await makeMetaJson(
+    config,
+    versionMetaJson,
+    packageSpecifier,
+  );
+  if (metaJson !== null) {
+    result[1] = metaJson;
+  }
+
+  result = result.concat(
+    await fetchJsrPackageFiles(config, result[0], packageSpecifier),
+  );
   return result;
 }
-

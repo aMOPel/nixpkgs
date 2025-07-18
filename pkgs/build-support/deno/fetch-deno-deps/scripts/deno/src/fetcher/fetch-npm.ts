@@ -30,7 +30,7 @@ async function makeRegistryJson(
   config: Config,
   packageFile: PackageFileIn,
   packageSpecifier: PackageSpecifier,
-): Promise<PackageFileOut> {
+): Promise<PackageFileOut | null> {
   const url = makeRegistryJsonUrl(packageSpecifier);
 
   const registryJson: PackageFileOut = {
@@ -53,13 +53,13 @@ async function makeRegistryJson(
       ...existingRegistryJson.versions,
       ...content.versions,
     };
+    const data = new TextEncoder().encode(JSON.stringify(content));
+    await Deno.writeFile(path, data, { create: true });
+    return null;
   }
 
-  await Deno.writeFile(
-    addPrefix(registryJson.outPath, config.outPathPrefix),
-    new TextEncoder().encode(JSON.stringify(content)),
-    { create: true },
-  );
+  const data = new TextEncoder().encode(JSON.stringify(content));
+  await Deno.writeFile(path, data, { create: true });
 
   return registryJson;
 }
@@ -74,6 +74,9 @@ export async function fetchNpm(
   }
   const result: Array<PackageFileOut> = [];
   result[0] = await fetchDefault(config, packageFile);
-  result[1] = await makeRegistryJson(config, packageFile, packageSpecifier);
+  const registryJson = await makeRegistryJson(config, packageFile, packageSpecifier);
+  if (registryJson !== null) {
+    result[1] = registryJson;
+  }
   return result;
 }
