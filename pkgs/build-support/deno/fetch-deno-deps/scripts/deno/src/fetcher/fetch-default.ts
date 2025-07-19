@@ -59,10 +59,10 @@ export async function fetchDefault(
 export async function fetchDefaultWithTypes(
   config: Config,
   p: PackageFileIn,
-): Promise<Array<PackageFileOut>> {
-  const result: Array<PackageFileOut> = [];
-  const packageFileOut = await fetchDefault(config, p);
-  result.push(packageFileOut);
+): Promise<Array<Promise<PackageFileOut>>> {
+  const result: Array<Promise<PackageFileOut>> = [];
+  result[0] = fetchDefault(config, p)
+  const packageFileOut = await result[0];
 
   if (
     !packageFileOut?.headers ||
@@ -90,6 +90,6 @@ export async function fetchDefaultWithTypes(
     meta: structuredClone(p),
   };
 
-  result.push(await fetchDefault(config, typesPackageFile));
+  result[1] = (fetchDefault(config, typesPackageFile));
   return result;
 }
