@@ -60,23 +60,36 @@ async function fetchAll(config: Config): Promise<Lockfiles> {
     vendor: [],
     npm: [],
   };
+  const result2: {
+    [key in keyof Lockfiles]: Array<Promise<CommonLockFormatOut>>;
+  } = {
+    vendor: [],
+    npm: [],
+  };
 
-  for await (const packageFile of config.commonLockfile) {
-    const packageSpecifier = packageFile?.meta?.packageSpecifier;
-    const nameOrUrl = packageSpecifier
-      ? getRegistryScopedNameVersion(packageSpecifier)
-      : packageFile.url;
-    console.log(`fetching ${nameOrUrl}`);
+  for (const packageFile of config.commonLockfile) {
+    // const packageSpecifier = packageFile?.meta?.packageSpecifier;
+    // const nameOrUrl = packageSpecifier
+    //   ? getRegistryScopedNameVersion(packageSpecifier)
+    //   : packageFile.url;
+    // console.log(`fetching ${nameOrUrl}`);
     const registry = packageFile?.meta?.registry;
     if (!registry) {
       throw `registry required but not given in '${JSON.stringify(packageFile)}'`;
     }
     const lockfile = lockfiles[registry] || lockfiles["default"];
     const fetcher = fetchers[registry] || fetchers["default"];
-    result[lockfile] = result[lockfile].concat(
-      await fetcher(config, packageFile),
-    );
+    result2[lockfile] = result2[lockfile].concat(fetcher(config, packageFile));
   }
+  for await (const key of Object.keys(result) as Array<keyof Lockfiles>) {
+    await Promise.all(result2[key]).then((packageFilesPromises) => {
+      Promise.all(packageFilesPromises.flat()).then((packageFiles) => {
+        for (const packageFile of packageFiles) {
+          result[key].push(packageFile);
+        }
+      });
+    });
+  };
 
   return result;
 }

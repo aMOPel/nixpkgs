@@ -137,20 +137,22 @@ async function fetchJsrPackageFiles(
   versionMetaJson: PackageFileOut,
   packageSpecifier: PackageSpecifier,
 ): Promise<Array<PackageFileOut>> {
-  const result: Array<PackageFileOut> = [];
+  let result: Array<PackageFileOut> = [];
+  const result2: Array<Promise<PackageFileOut>> = [];
   const files = await getFilesAndHashesUsingModuleGraph(
     config,
     versionMetaJson,
   );
-  for await (const [filePath, hash] of Object.entries(files)) {
+  for (const [filePath, hash] of Object.entries(files)) {
     const packageFile: PackageFileIn = {
       url: makeJsrPackageFileUrl(packageSpecifier, filePath),
       hash,
       hashAlgo: "sha256",
       meta: { packageSpecifier },
     };
-    result.push(await fetchDefault(config, packageFile));
+    result2.push(fetchDefault(config, packageFile));
   }
+  result = await Promise.all(result)
   return result;
 }
 

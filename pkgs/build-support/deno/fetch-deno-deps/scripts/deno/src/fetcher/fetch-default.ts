@@ -32,6 +32,7 @@ export async function fetchDefault(
     create: true,
     truncate: true,
   });
+  console.log(`fetching ${p.url}`)
   const response = await fetch(p.url);
   if (!response.ok) {
     throw `fetch to ${p.url} failed`;
