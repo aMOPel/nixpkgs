@@ -44,10 +44,7 @@ type Lockfiles = { vendor: CommonLockFormatOut; npm: CommonLockFormatOut };
 async function fetchAll(config: Config): Promise<Lockfiles> {
   const fetchers: Record<
     string,
-    (
-      c: Config,
-      p: PackageFileIn,
-    ) => Promise<Array<Promise<PackageFileOut | null>>>
+    (c: Config, p: PackageFileIn) => Promise<Array<PackageFileOut>>
   > = {
     jsr: fetchJsr,
     npm: fetchNpm,
@@ -63,15 +60,8 @@ async function fetchAll(config: Config): Promise<Lockfiles> {
     vendor: [],
     npm: [],
   };
-  const result2: {
-    vendor: Array<Promise<Array<Promise<PackageFileOut | null>>>>;
-    npm: Array<Promise<Array<Promise<PackageFileOut | null>>>>;
-  } = {
-    vendor: [],
-    npm: [],
-  };
 
-  for (const packageFile of config.commonLockfile) {
+  for await (const packageFile of config.commonLockfile) {
     const packageSpecifier = packageFile?.meta?.packageSpecifier;
     const nameOrUrl = packageSpecifier
       ? getRegistryScopedNameVersion(packageSpecifier)
@@ -83,28 +73,10 @@ async function fetchAll(config: Config): Promise<Lockfiles> {
     }
     const lockfile = lockfiles[registry] || lockfiles["default"];
     const fetcher = fetchers[registry] || fetchers["default"];
-    result2[lockfile] = result2[lockfile].concat(fetcher(config, packageFile));
+    result[lockfile] = result[lockfile].concat(
+      await fetcher(config, packageFile),
+    );
   }
-  Promise.all(result2.vendor).then((packageFilesPromises) => {
-    Promise.all(packageFilesPromises.flat()).then((packageFiles) => {
-      for (const packageFile of packageFiles) {
-        if (packageFile !== null) {
-          result.vendor.push(packageFile);
-        }
-      }
-    });
-  });
-  Promise.all(result2.npm).then((packageFilesPromises) => {
-    Promise.all(packageFilesPromises.flat()).then((packageFiles) => {
-      for (const packageFile of packageFiles) {
-        if (packageFile !== null) {
-          result.npm.push(packageFile);
-        }
-      }
-    });
-  });
-  result.npm.sort((a,b)=>a.url === b.url ? 0 : a.url > b.url ? 1 : -1)
-  result.vendor.sort((a,b)=>a.url === b.url ? 0 : a.url > b.url ? 1 : -1)
 
   return result;
 }

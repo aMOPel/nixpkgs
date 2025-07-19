@@ -55,7 +55,7 @@ async function makeRegistryJson(
     };
     const data = new TextEncoder().encode(JSON.stringify(content));
     await Deno.writeFile(path, data, { create: true });
-    throw "already exists";
+    return null;
   }
 
   const data = new TextEncoder().encode(JSON.stringify(content));
@@ -64,24 +64,19 @@ async function makeRegistryJson(
   return registryJson;
 }
 
-export function fetchNpm(
+export async function fetchNpm(
   config: Config,
   packageFile: PackageFileIn,
-): Promise<Array<Promise<PackageFileOut | null>>> {
+): Promise<Array<PackageFileOut>> {
   const packageSpecifier = packageFile?.meta?.packageSpecifier;
   if (!packageSpecifier) {
     throw `packageSpecifier required but not found in ${JSON.stringify(packageFile)}`;
   }
-  const result: Array<Promise<PackageFileOut | null>> = [];
-  result[0] = fetchDefault(config, packageFile);
-  result[1] = makeRegistryJson(config, packageFile, packageSpecifier).catch(
-    (e) => {
-      if (e instanceof Error && e.message === "already exists") {
-        return null;
-      }
-      throw e;
-    },
-  );
-
-  return Promise.resolve(result);
+  const result: Array<PackageFileOut> = [];
+  result[0] = await fetchDefault(config, packageFile);
+  const registryJson = await makeRegistryJson(config, packageFile, packageSpecifier);
+  if (registryJson !== null) {
+    result[1] = registryJson;
+  }
+  return result;
 }

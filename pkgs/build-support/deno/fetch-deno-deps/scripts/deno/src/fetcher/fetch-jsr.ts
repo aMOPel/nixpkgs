@@ -47,7 +47,7 @@ async function makeMetaJson(
   config: Config,
   versionMetaJson: PackageFileIn,
   packageSpecifier: PackageSpecifier,
-): Promise<PackageFileOut> {
+): Promise<PackageFileOut | null> {
   const metaJsonUrl = makeMetaJsonUrl(packageSpecifier);
 
   const metaJson: PackageFileOut = {
@@ -69,7 +69,7 @@ async function makeMetaJson(
     content.versions = { ...existingMetaJson.versions, ...content.versions };
     const data = new TextEncoder().encode(JSON.stringify(content));
     await Deno.writeFile(path, data, { create: true });
-    throw "already exists";
+    return null;
   }
 
   const data = new TextEncoder().encode(JSON.stringify(content));
@@ -134,22 +134,22 @@ async function getFilesAndHashesUsingModuleGraph(
 
 async function fetchJsrPackageFiles(
   config: Config,
-  versionMetaJson: Promise<PackageFileOut>,
+  versionMetaJson: PackageFileOut,
   packageSpecifier: PackageSpecifier,
-): Promise<Array<Promise<PackageFileOut>>> {
-  const result: Array<Promise<PackageFileOut>> = [];
+): Promise<Array<PackageFileOut>> {
+  const result: Array<PackageFileOut> = [];
   const files = await getFilesAndHashesUsingModuleGraph(
     config,
-    await versionMetaJson,
+    versionMetaJson,
   );
-  for (const [filePath, hash] of Object.entries(files)) {
+  for await (const [filePath, hash] of Object.entries(files)) {
     const packageFile: PackageFileIn = {
       url: makeJsrPackageFileUrl(packageSpecifier, filePath),
       hash,
       hashAlgo: "sha256",
       meta: { packageSpecifier },
     };
-    result.push(fetchDefault(config, packageFile));
+    result.push(await fetchDefault(config, packageFile));
   }
   return result;
 }
@@ -157,30 +157,25 @@ async function fetchJsrPackageFiles(
 export async function fetchJsr(
   config: Config,
   versionMetaJson: PackageFileIn,
-): Promise<Array<Promise<PackageFileOut | null>>> {
+): Promise<Array<PackageFileOut>> {
   const packageSpecifier = versionMetaJson?.meta?.packageSpecifier;
   if (!packageSpecifier) {
     throw `packageSpecifier required but not found in ${JSON.stringify(versionMetaJson)}`;
   }
-  let result: Array<Promise<PackageFileOut | null>> = [];
-  const versionMetaJsonFetched = fetchVersionMetaJson(config, versionMetaJson);
-  result[0] = versionMetaJsonFetched;
+  let result: Array<PackageFileOut> = [];
+  result[0] = await fetchVersionMetaJson(config, versionMetaJson);
 
-  result[1] = makeMetaJson(config, versionMetaJson, packageSpecifier).catch(
-    (e) => {
-      if (e instanceof Error && e.message === "already exists") {
-        return null;
-      }
-      throw e;
-    },
+  const metaJson = await makeMetaJson(
+    config,
+    versionMetaJson,
+    packageSpecifier,
   );
+  if (metaJson !== null) {
+    result[1] = metaJson;
+  }
 
   result = result.concat(
-    await fetchJsrPackageFiles(
-      config,
-      versionMetaJsonFetched,
-      packageSpecifier,
-    ),
+    await fetchJsrPackageFiles(config, result[0], packageSpecifier),
   );
   return result;
 }
