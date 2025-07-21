@@ -1,4 +1,4 @@
-import { addPrefix, getScopedName } from "../utils.ts";
+import { addPrefix, getBasePath, getScopedName } from "../utils.ts";
 
 type Config = FileTransformerNpmConfig;
 function getConfig(): Config {
@@ -28,7 +28,7 @@ function getConfig(): Config {
     ),
     cachePath: flagsParsed["cache-path"],
     inPath: flagsParsed["in-path"],
-    inBasePath: flagsParsed["in-path"].split("/").slice(0, -1).join("/"),
+    inBasePath: getBasePath(flagsParsed["in-path"]),
     rootPath: `${flagsParsed["cache-path"]}/npm/registry.npmjs.org`,
   };
 }

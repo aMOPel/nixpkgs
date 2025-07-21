@@ -64,6 +64,9 @@ function makeNpmPackageUrl(packageSpecifier: PackageSpecifier): UrlString {
 
 function makeJsrCommonLock(denolock: DenoLock): CommonLockFormatIn {
   const result: CommonLockFormatIn = [];
+  if (!denolock.jsr) {
+    return [];
+  }
   Object.entries(denolock.jsr).forEach(([key, value]) => {
     const packageSpecifier = parsePackageSpecifier(key);
     const registry = "jsr";
@@ -86,6 +89,9 @@ function makeJsrCommonLock(denolock: DenoLock): CommonLockFormatIn {
 
 function makeNpmCommonLock(denolock: DenoLock): CommonLockFormatIn {
   const result: CommonLockFormatIn = [];
+  if (!denolock.npm) {
+    return [];
+  }
   Object.entries(denolock.npm).forEach(([key, value]) => {
     const packageSpecifier = parsePackageSpecifier(key);
     const registry = "npm";
@@ -119,6 +125,7 @@ function transformHttpsPackageFile(p: PackageFileIn): PackageFileIn {
         url.searchParams.set("target", "denonext");
       }
       result.url = url.toString();
+      result.meta = { ...p.meta, original: structuredClone(p) };
       return result;
     },
     default: function (p: PackageFileIn): PackageFileIn {
@@ -134,22 +141,40 @@ function transformHttpsPackageFile(p: PackageFileIn): PackageFileIn {
 }
 
 function makeHttpsCommonLock(denolock: DenoLock): CommonLockFormatIn {
-  const result: CommonLockFormatIn = [];
-  Object.entries(denolock.remote).forEach(([url, hash]) => {
-    const registry = getRegistry(url);
-    const hashAlgo = "sha256";
-    result.push(
-      transformHttpsPackageFile({
+  const result: Record<string, PackageFileIn> = {};
+  if (!denolock.remote) {
+    return [];
+  }
+  if (denolock.redirects) {
+    Object.entries(denolock.redirects).forEach(([original, redirect]) => {
+      const url = redirect;
+      const registry = getRegistry(url);
+      const hash = "";
+      const hashAlgo = "sha256";
+      result[url] = transformHttpsPackageFile({
         url,
         hash,
         hashAlgo,
         meta: {
           registry,
         },
-      }),
-    );
+      });
+    });
+  }
+  Object.entries(denolock.remote).forEach(([url, hash]) => {
+    const registry = getRegistry(url);
+    const hashAlgo = "sha256";
+    result[url] = transformHttpsPackageFile({
+      url,
+      hash,
+      hashAlgo,
+      meta: {
+        registry,
+      },
+    });
   });
-  return result;
+
+  return Object.values(result);
 }
 
 async function main() {

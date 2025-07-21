@@ -1,4 +1,4 @@
-import { addPrefix, isPath } from "../utils.ts";
+import { addPrefix, getBasePath, isPath, normalizeUnixPath } from "../utils.ts";
 
 type Config = SingleFodFetcherConfig;
 
@@ -32,7 +32,7 @@ export async function fetchDefault(
     create: true,
     truncate: true,
   });
-  console.log(`fetching ${p.url}`)
+  console.log(`fetching ${p.url}`);
   const response = await fetch(p.url);
   if (!response.ok) {
     throw `fetch to ${p.url} failed`;
@@ -63,7 +63,7 @@ export async function fetchDefaultWithTypes(
 ): Promise<Array<PackageFileOut>> {
   const result: Array<PackageFileOut> = [];
   const packageFileOut = await fetchDefault(config, p);
-  result.push(packageFileOut);
+  result[0] = packageFileOut;
 
   if (
     !packageFileOut?.headers ||
@@ -84,13 +84,42 @@ export async function fetchDefaultWithTypes(
   } else {
     throw `unsupported x-typescript-types url: ${typesUrl}`;
   }
-  const typesPackageFile: PackageFileIn = {
-    url,
-    hash: "",
-    hashAlgo: "sha256",
-    meta: structuredClone(p),
-  };
 
-  result.push(await fetchDefault(config, typesPackageFile));
+  const typesCache: Record<string, PackageFileOut> = {};
+  async function recursivelyFetchTypes(url: string) {
+    const typesPackageFile: PackageFileIn = {
+      url,
+      hash: "",
+      hashAlgo: "sha256",
+      meta: { from: structuredClone(p) },
+    };
+
+    if (Object.hasOwn(typesCache, url)) {
+      return;
+    }
+
+    const fetched = await fetchDefault(config, typesPackageFile);
+    result.push(fetched);
+    typesCache[url] = fetched;
+
+    const content = await Deno.readTextFile(
+      addPrefix(result.at(-1)?.outPath as string, config.outPathPrefix),
+    );
+    const regex = /(?:"|')[a-zA-Z0-9_\.\-\/]+\.d\.ts(?:"|')/gm;
+    const matches = content.match(regex);
+    if (matches === null) {
+      return;
+    }
+    const importedFiles = matches
+      ?.map((v) => v.replaceAll(/"|'/g, ""))
+      .map((v) => normalizeUnixPath(`${getBasePath(url)}/${v}`));
+
+    const unresolved: Array<Promise<void>> = [];
+    for (const url of importedFiles) {
+      unresolved.push(recursivelyFetchTypes(url));
+    }
+    await Promise.all(unresolved);
+  }
+  recursivelyFetchTypes(url);
   return result;
 }

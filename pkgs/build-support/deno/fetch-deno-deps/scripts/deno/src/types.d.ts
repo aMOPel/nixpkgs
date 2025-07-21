@@ -73,7 +73,7 @@ type Dependency =
     }
   | {
       type: "dynamic";
-      argument: PathString | PackageSpecifierString;
+      argument: PathString | PackageSpecifierString | Array<{type:string, value:any}>;
       argumentRange: Array<Array<number>>;
     };
 

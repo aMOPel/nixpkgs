@@ -1,6 +1,7 @@
 import { fetchDefault, makeOutPath } from "./fetch-default.ts";
 import {
   addPrefix,
+  getBasePath,
   getScopedName,
   isPath,
   normalizeUnixPath,
@@ -62,7 +63,7 @@ async function getFilesAndHashesUsingModuleGraph(
   const exporters = Object.values(exports).map((v) => v.replace(/^\.\//, "/"));
   const imported: Array<string> = [];
   Object.entries(moduleGraph).forEach(([importedFilePath, value]) => {
-    const basePath = importedFilePath.split("/").slice(0, -1).join("/");
+    const basePath = getBasePath(importedFilePath);
     value?.dependencies?.forEach((dependency) => {
       let specifier = "";
       switch (dependency.type) {
@@ -70,7 +71,25 @@ async function getFilesAndHashesUsingModuleGraph(
           specifier = dependency.specifier;
           break;
         case "dynamic":
-          specifier = dependency.argument || "";
+          if (typeof dependency.argument === "string") {
+            specifier = dependency.argument || "";
+          } else {
+            if (!dependency.argument) {
+              specifier = ""
+              return
+            }
+            const args = dependency.argument.filter(
+              (v): v is { type: "string"; value: string } =>
+                v.type === "string" &&
+                typeof v.value === "string" &&
+                v.value.length > 0,
+            );
+            if (args.length > 0){
+              specifier = args[0].value;
+            } else {
+              throw `unsupported moduleGraph format in ${JSON.stringify(versionMetaJson)}:\n\n${moduleGraph}`;
+            }
+          }
           break;
         default:
           throw `unsupported moduleGraph format in ${JSON.stringify(versionMetaJson)}:\n\n${moduleGraph}`;

@@ -39,6 +39,10 @@ export function isPath(s: string): boolean {
   return s.startsWith("./") || s.startsWith("../") || s.startsWith("/");
 }
 
+export function getBasePath(path: PathString): PathString {
+  return path.split("/").slice(0, -1).join("/");
+}
+
 export function normalizeUnixPath(path: PathString): PathString {
   const segments = path.split("/");
   const stack = [];
