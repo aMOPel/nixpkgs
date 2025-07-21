@@ -59,4 +59,3 @@ export function normalizeUnixPath(path: PathString): PathString {
   const isAbsolute = path.startsWith("/");
   return (isAbsolute ? "/" : "") + stack.join("/");
 }
-

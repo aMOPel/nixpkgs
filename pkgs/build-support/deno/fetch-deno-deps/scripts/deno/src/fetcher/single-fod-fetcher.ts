@@ -2,10 +2,9 @@
 // the problem is that the hashes use different encoding schemes, while `fetch`
 // expects a specific one, so some translation needs to happen, without any from the network.
 
-import { fetchDefaultWithTypes } from "./fetch-default.ts";
-import { fetchAllJsr, fetchJsr } from "./fetch-jsr.ts";
-import { fetchAllNpm, fetchNpm } from "./fetch-npm.ts";
-import { addPrefix, getRegistryScopedNameVersion } from "../utils.ts";
+import { fetchAllJsr } from "./fetch-jsr.ts";
+import { fetchAllNpm } from "./fetch-npm.ts";
+import { addPrefix } from "../utils.ts";
 import { fetchAllHttps } from "./fetch-https.ts";
 
 type Config = SingleFodFetcherConfig;

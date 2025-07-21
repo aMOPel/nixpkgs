@@ -72,11 +72,7 @@ async function transformFilesNpm(config: Config) {
       const outPath = makeRegistryJsonPath(config.rootPath, packageSpecifier);
       await Deno.copyFile(inPath, outPath);
     } else {
-      await unpackPackage(
-        config,
-        packageSpecifier,
-        inPath,
-      );
+      await unpackPackage(config, packageSpecifier, inPath);
     }
   }
 }

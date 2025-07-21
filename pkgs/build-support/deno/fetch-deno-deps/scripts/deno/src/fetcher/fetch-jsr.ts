@@ -1,7 +1,6 @@
 import { fetchDefault, makeOutPath } from "./fetch-default.ts";
 import {
   addPrefix,
-  fileExists,
   getScopedName,
   isPath,
   normalizeUnixPath,
@@ -131,8 +130,11 @@ export async function fetchJsr(
   return result;
 }
 
-type MetaJsonData = { content: MetaJson; packageFile: PackageFileOut }
-type MetaJsonsData=Record<string, { content: MetaJson; packageFile: PackageFileOut }>
+type MetaJsonData = { content: MetaJson; packageFile: PackageFileOut };
+type MetaJsonsData = Record<
+  string,
+  { content: MetaJson; packageFile: PackageFileOut }
+>;
 async function makeMetaJson(
   versionMetaJson: PackageFileIn,
   packageSpecifier: PackageSpecifier,
@@ -177,11 +179,11 @@ async function makeMetaJson(
   return metaJsons;
 }
 
-async function writeMetaJson(
-  config: Config,
-  metaJsonData: MetaJsonData,
-) {
-  const path = addPrefix(metaJsonData.packageFile.outPath, config.outPathPrefix);
+async function writeMetaJson(config: Config, metaJsonData: MetaJsonData) {
+  const path = addPrefix(
+    metaJsonData.packageFile.outPath,
+    config.outPathPrefix,
+  );
 
   const data = new TextEncoder().encode(JSON.stringify(metaJsonData.content));
   await Deno.writeFile(path, data, { create: true });
@@ -202,7 +204,11 @@ export async function fetchAllJsr(
 
     resultUnresolved.push(fetchJsr(config, versionMetaJson, packageSpecifier));
 
-    metaJsons = await makeMetaJson(versionMetaJson, packageSpecifier, metaJsons);
+    metaJsons = await makeMetaJson(
+      versionMetaJson,
+      packageSpecifier,
+      metaJsons,
+    );
   }
 
   for (const metaJson of Object.values(metaJsons)) {

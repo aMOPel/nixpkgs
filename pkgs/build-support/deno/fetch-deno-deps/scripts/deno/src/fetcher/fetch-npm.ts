@@ -1,5 +1,5 @@
 import { fetchDefault, makeOutPath } from "./fetch-default.ts";
-import { addPrefix, fileExists, getScopedName } from "../utils.ts";
+import { addPrefix, getScopedName } from "../utils.ts";
 type Config = SingleFodFetcherConfig;
 
 function makeRegistryJsonUrl(packageSpecifier: PackageSpecifier): string {
