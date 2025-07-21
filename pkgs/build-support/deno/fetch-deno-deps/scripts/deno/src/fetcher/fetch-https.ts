@@ -20,5 +20,6 @@ export async function fetchAllHttps(
     });
     result = result.concat(b);
   });
+  result.sort((a, b) => (a.url === b.url ? 0 : a.url < b.url ? -1 : 1));
   return result;
 }

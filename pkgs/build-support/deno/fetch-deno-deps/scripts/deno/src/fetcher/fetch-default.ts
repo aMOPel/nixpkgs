@@ -102,23 +102,21 @@ export async function fetchDefaultWithTypes(
     result.push(fetched);
     typesCache[url] = fetched;
 
-    const content = await Deno.readTextFile(
+    const fileContent = await Deno.readTextFile(
       addPrefix(result.at(-1)?.outPath as string, config.outPathPrefix),
     );
-    const regex = /(?:"|')[a-zA-Z0-9_\.\-\/]+\.d\.ts(?:"|')/gm;
-    const matches = content.match(regex);
-    if (matches === null) {
+    const fileNamesRegex = /(?:"|')[a-zA-Z0-9_\.\-\/]+\.d\.ts(?:"|')/gm;
+    const importedFileNames = fileContent.match(fileNamesRegex);
+    if (importedFileNames === null) {
       return;
     }
-    const importedFiles = matches
+    const importedFileUrls = importedFileNames
       ?.map((v) => v.replaceAll(/"|'/g, ""))
       .map((v) => normalizeUnixPath(`${getBasePath(url)}/${v}`));
 
-    const unresolved: Array<Promise<void>> = [];
-    for (const url of importedFiles) {
-      unresolved.push(recursivelyFetchTypes(url));
+    for (const url of importedFileUrls) {
+      await recursivelyFetchTypes(url)
     }
-    await Promise.all(unresolved);
   }
   recursivelyFetchTypes(url);
   return result;
