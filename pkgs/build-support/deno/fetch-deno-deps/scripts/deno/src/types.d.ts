@@ -1,6 +1,8 @@
 type LockfileTransformerConfig = {
   inPath: PathString;
-  outPath: PathString;
+  outPathJsr: PathString;
+  outPathNpm: PathString;
+  outPathHttps: PathString;
   lockfile: DenoLock;
 };
 
@@ -14,10 +16,14 @@ type FileTransformerNpmConfig = {
 
 type SingleFodFetcherConfig = {
   outPathPrefix: PathString;
-  inPath: PathString;
+  inPathJsr: PathString;
+  inPathNpm: PathString;
+  inPathHttps: PathString;
   outPathVendored: PathString;
   outPathNpm: PathString;
-  commonLockfile: CommonLockFormatIn;
+  commonLockfileJsr: CommonLockFormatIn;
+  commonLockfileNpm: CommonLockFormatIn;
+  commonLockfileHttps: CommonLockFormatIn;
 };
 
 // ==============
@@ -88,6 +94,21 @@ type MetaJson = {
   scope: string;
   latest: string;
   versions: { [version: string]: Record<PropertyKey, never> };
+};
+
+type RegistryJson = {
+  name: string;
+  "dist-tags": Record<PropertyKey, never>;
+  "_deno.etag": string;
+  versions: {
+    [version: string]: {
+      version: string;
+      dist: {
+        tarball: string;
+      };
+      bin: Record<PropertyKey, never>;
+    };
+  };
 };
 
 // ==============

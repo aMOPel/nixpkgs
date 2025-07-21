@@ -16,7 +16,12 @@ let
       src = null;
       unpackPhase = "true";
       buildPhase = ''
-        lockfile-transformer --in-path ${denoLock} --out-path $out
+        mkdir -p $out
+        lockfile-transformer \
+          --in-path ${denoLock} \
+          --out-path-jsr $out/jsr.json \
+          --out-path-npm $out/npm.json \
+          --out-path-https $out/https.json;
       '';
       nativeBuildInputs = [
         fetch-deno-deps-scripts
@@ -38,7 +43,13 @@ let
       src = null;
       unpackPhase = "true";
       buildPhase = ''
-        single-fod-fetcher --in-path ${transformedDenoLock} --out-path-prefix $out --out-path-vendored ${vendorJsonName} --out-path-npm ${npmJsonName};
+        single-fod-fetcher \
+          --in-path-jsr ${transformedDenoLock}/jsr.json \
+          --in-path-npm ${transformedDenoLock}/npm.json \
+          --in-path-https ${transformedDenoLock}/https.json \
+          --out-path-prefix $out \
+          --out-path-vendored ${vendorJsonName} \
+          --out-path-npm ${npmJsonName};
         cp ${denoLock} $out/deno.lock
       '';
       nativeBuildInputs = [

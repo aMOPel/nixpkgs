@@ -3,14 +3,17 @@
 // expects a specific one, so some translation needs to happen, without any from the network.
 
 import { fetchDefaultWithTypes } from "./fetch-default.ts";
-import { fetchJsr } from "./fetch-jsr.ts";
-import { fetchNpm } from "./fetch-npm.ts";
+import { fetchAllJsr, fetchJsr } from "./fetch-jsr.ts";
+import { fetchAllNpm, fetchNpm } from "./fetch-npm.ts";
 import { addPrefix, getRegistryScopedNameVersion } from "../utils.ts";
+import { fetchAllHttps } from "./fetch-https.ts";
 
 type Config = SingleFodFetcherConfig;
 function getConfig(): Config {
   const flagsParsed = {
-    "in-path": "",
+    "in-path-jsr": "",
+    "in-path-npm": "",
+    "in-path-https": "",
     "out-path-vendored": "",
     "out-path-npm": "",
     "out-path-prefix": "",
@@ -30,68 +33,38 @@ function getConfig(): Config {
   });
 
   return {
-    commonLockfile: JSON.parse(
-      new TextDecoder().decode(Deno.readFileSync(flagsParsed["in-path"])),
+    commonLockfileJsr: JSON.parse(
+      new TextDecoder().decode(Deno.readFileSync(flagsParsed["in-path-jsr"])),
+    ),
+    commonLockfileNpm: JSON.parse(
+      new TextDecoder().decode(Deno.readFileSync(flagsParsed["in-path-npm"])),
+    ),
+    commonLockfileHttps: JSON.parse(
+      new TextDecoder().decode(Deno.readFileSync(flagsParsed["in-path-https"])),
     ),
     outPathVendored: flagsParsed["out-path-vendored"],
     outPathNpm: flagsParsed["out-path-npm"],
-    inPath: flagsParsed["in-path"],
+    inPathJsr: flagsParsed["in-path-jsr"],
+    inPathNpm: flagsParsed["in-path-npm"],
+    inPathHttps: flagsParsed["in-path-https"],
     outPathPrefix: flagsParsed["out-path-prefix"] || "",
   };
 }
 
 type Lockfiles = { vendor: CommonLockFormatOut; npm: CommonLockFormatOut };
 async function fetchAll(config: Config): Promise<Lockfiles> {
-  const fetchers: Record<
-    string,
-    (c: Config, p: PackageFileIn) => Promise<Array<PackageFileOut>>
-  > = {
-    jsr: fetchJsr,
-    npm: fetchNpm,
-    default: fetchDefaultWithTypes,
+  const lockfilesByRegistry = {
+    jsr: await fetchAllJsr(config),
+    https: await fetchAllHttps(config),
+    npm: await fetchAllNpm(config),
   };
 
-  const lockfiles: Record<string, keyof Lockfiles> = {
-    npm: "npm",
-    default: "vendor",
+  const lockfilesByCache = {
+    vendor: lockfilesByRegistry.jsr.concat(lockfilesByRegistry.https),
+    npm: lockfilesByRegistry.npm,
   };
 
-  const result: Lockfiles = {
-    vendor: [],
-    npm: [],
-  };
-  const result2: {
-    [key in keyof Lockfiles]: Array<Promise<CommonLockFormatOut>>;
-  } = {
-    vendor: [],
-    npm: [],
-  };
-
-  for (const packageFile of config.commonLockfile) {
-    // const packageSpecifier = packageFile?.meta?.packageSpecifier;
-    // const nameOrUrl = packageSpecifier
-    //   ? getRegistryScopedNameVersion(packageSpecifier)
-    //   : packageFile.url;
-    // console.log(`fetching ${nameOrUrl}`);
-    const registry = packageFile?.meta?.registry;
-    if (!registry) {
-      throw `registry required but not given in '${JSON.stringify(packageFile)}'`;
-    }
-    const lockfile = lockfiles[registry] || lockfiles["default"];
-    const fetcher = fetchers[registry] || fetchers["default"];
-    result2[lockfile] = result2[lockfile].concat(fetcher(config, packageFile));
-  }
-  for await (const key of Object.keys(result) as Array<keyof Lockfiles>) {
-    await Promise.all(result2[key]).then((packageFilesPromises) => {
-      Promise.all(packageFilesPromises.flat()).then((packageFiles) => {
-        for (const packageFile of packageFiles) {
-          result[key].push(packageFile);
-        }
-      });
-    });
-  };
-
-  return result;
+  return lockfilesByCache;
 }
 
 async function main() {

@@ -1,10 +1,12 @@
 import { getScopedName } from "../utils.ts";
 
-type Config = LockfileTransformerConfig
+type Config = LockfileTransformerConfig;
 function getConfig(): Config {
   const flagsParsed = {
     "in-path": "",
-    "out-path": "",
+    "out-path-jsr": "",
+    "out-path-npm": "",
+    "out-path-https": "",
   };
   const flags = Object.keys(flagsParsed).map((v) => "--" + v);
   Deno.args.forEach((arg, index) => {
@@ -26,7 +28,9 @@ function getConfig(): Config {
         Deno.readFileSync(flagsParsed["in-path"]),
       ),
     ),
-    outPath: flagsParsed["out-path"],
+    outPathJsr: flagsParsed["out-path-jsr"],
+    outPathNpm: flagsParsed["out-path-npm"],
+    outPathHttps: flagsParsed["out-path-https"],
     inPath: flagsParsed["in-path"],
   };
 }
@@ -148,18 +152,20 @@ function makeHttpsCommonLock(denolock: DenoLock): CommonLockFormatIn {
   return result;
 }
 
-function transformLock(denolock: DenoLock): CommonLockFormatIn {
-  let result: CommonLockFormatIn = [];
-  result = result.concat(makeJsrCommonLock(denolock));
-  result = result.concat(makeNpmCommonLock(denolock));
-  result = result.concat(makeHttpsCommonLock(denolock));
-  return result;
-}
-
-function main() {
+async function main() {
   const config = getConfig();
-  const transformedLock = transformLock(config.lockfile);
-  Deno.writeTextFileSync(config.outPath, JSON.stringify(transformedLock));
+  const transformedLockJsr = makeJsrCommonLock(config.lockfile);
+  const transformedLockNpm = makeNpmCommonLock(config.lockfile);
+  const transformedLockHttps = makeHttpsCommonLock(config.lockfile);
+  const promises = [
+    Deno.writeTextFile(config.outPathJsr, JSON.stringify(transformedLockJsr)),
+    Deno.writeTextFile(config.outPathNpm, JSON.stringify(transformedLockNpm)),
+    Deno.writeTextFile(
+      config.outPathHttps,
+      JSON.stringify(transformedLockHttps),
+    ),
+  ];
+  await Promise.all(promises);
 }
 
 if (import.meta.main) {

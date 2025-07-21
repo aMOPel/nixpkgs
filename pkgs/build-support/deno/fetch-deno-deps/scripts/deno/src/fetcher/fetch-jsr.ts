@@ -39,45 +39,6 @@ function makeMetaJsonContent(packageSpecifier: PackageSpecifier): MetaJson {
   };
 }
 
-// TODO: this will merge existing meta.json version, which is good,
-// but it wont merge meta.packageSpecifiers, but override,
-// and it will create 2 entries in final lockfile
-// TODO: same for registry.json
-async function makeMetaJson(
-  config: Config,
-  versionMetaJson: PackageFileIn,
-  packageSpecifier: PackageSpecifier,
-): Promise<PackageFileOut | null> {
-  const metaJsonUrl = makeMetaJsonUrl(packageSpecifier);
-
-  const metaJson: PackageFileOut = {
-    url: metaJsonUrl,
-    hash: "",
-    hashAlgo: "sha256",
-    outPath: "",
-    meta: structuredClone(versionMetaJson.meta),
-  };
-  metaJson.outPath = await makeOutPath(metaJson);
-
-  const content = makeMetaJsonContent(packageSpecifier);
-  const path = addPrefix(metaJson.outPath, config.outPathPrefix);
-
-  if (await fileExists(path)) {
-    const existingMetaJson = JSON.parse(
-      new TextDecoder().decode(await Deno.readFile(path)),
-    );
-    content.versions = { ...existingMetaJson.versions, ...content.versions };
-    const data = new TextEncoder().encode(JSON.stringify(content));
-    await Deno.writeFile(path, data, { create: true });
-    return null;
-  }
-
-  const data = new TextEncoder().encode(JSON.stringify(content));
-  await Deno.writeFile(path, data, { create: true });
-
-  return metaJson;
-}
-
 async function getFilesAndHashesUsingModuleGraph(
   config: Config,
   versionMetaJson: PackageFileOut,
@@ -138,7 +99,7 @@ async function fetchJsrPackageFiles(
   packageSpecifier: PackageSpecifier,
 ): Promise<Array<PackageFileOut>> {
   let result: Array<PackageFileOut> = [];
-  const result2: Array<Promise<PackageFileOut>> = [];
+  const resultUnresolved: Array<Promise<PackageFileOut>> = [];
   const files = await getFilesAndHashesUsingModuleGraph(
     config,
     versionMetaJson,
@@ -150,34 +111,107 @@ async function fetchJsrPackageFiles(
       hashAlgo: "sha256",
       meta: { packageSpecifier },
     };
-    result2.push(fetchDefault(config, packageFile));
+    resultUnresolved.push(fetchDefault(config, packageFile));
   }
-  result = await Promise.all(result)
+  result = await Promise.all(resultUnresolved);
   return result;
 }
 
 export async function fetchJsr(
   config: Config,
   versionMetaJson: PackageFileIn,
-): Promise<Array<PackageFileOut>> {
-  const packageSpecifier = versionMetaJson?.meta?.packageSpecifier;
-  if (!packageSpecifier) {
-    throw `packageSpecifier required but not found in ${JSON.stringify(versionMetaJson)}`;
-  }
+  packageSpecifier: PackageSpecifier,
+): Promise<CommonLockFormatOut> {
   let result: Array<PackageFileOut> = [];
   result[0] = await fetchVersionMetaJson(config, versionMetaJson);
-
-  const metaJson = await makeMetaJson(
-    config,
-    versionMetaJson,
-    packageSpecifier,
-  );
-  if (metaJson !== null) {
-    result[1] = metaJson;
-  }
 
   result = result.concat(
     await fetchJsrPackageFiles(config, result[0], packageSpecifier),
   );
+  return result;
+}
+
+type MetaJsonData = { content: MetaJson; packageFile: PackageFileOut }
+type MetaJsonsData=Record<string, { content: MetaJson; packageFile: PackageFileOut }>
+async function makeMetaJson(
+  versionMetaJson: PackageFileIn,
+  packageSpecifier: PackageSpecifier,
+  metaJsons: MetaJsonsData,
+): Promise<MetaJsonsData> {
+  const metaJsonUrl = makeMetaJsonUrl(packageSpecifier);
+
+  const packageFile: PackageFileOut = {
+    url: metaJsonUrl,
+    hash: "",
+    hashAlgo: "sha256",
+    outPath: "",
+    meta: structuredClone(versionMetaJson.meta),
+  };
+  packageFile.outPath = await makeOutPath(packageFile);
+
+  const key = getScopedName(packageSpecifier);
+  const content = makeMetaJsonContent(packageSpecifier);
+  if (Object.hasOwn(metaJsons, key)) {
+    if (
+      Object.hasOwn(metaJsons[key].packageFile.meta, "otherPackageSpecifiers")
+    ) {
+      metaJsons[key].packageFile.meta.otherPackageSpecifiers.push(
+        packageSpecifier,
+      );
+    } else {
+      metaJsons[key].packageFile.meta.otherPackageSpecifiers = [
+        packageSpecifier,
+      ];
+    }
+
+    metaJsons[key].content.versions = {
+      ...metaJsons[key].content.versions,
+      ...content.versions,
+    };
+  } else {
+    metaJsons[key] = {
+      packageFile,
+      content,
+    };
+  }
+  return metaJsons;
+}
+
+async function writeMetaJson(
+  config: Config,
+  metaJsonData: MetaJsonData,
+) {
+  const path = addPrefix(metaJsonData.packageFile.outPath, config.outPathPrefix);
+
+  const data = new TextEncoder().encode(JSON.stringify(metaJsonData.content));
+  await Deno.writeFile(path, data, { create: true });
+}
+
+export async function fetchAllJsr(
+  config: Config,
+): Promise<CommonLockFormatOut> {
+  let result: CommonLockFormatOut = [];
+  const resultUnresolved: Array<Promise<CommonLockFormatOut>> = [];
+  let metaJsons: MetaJsonsData = {};
+
+  for (const versionMetaJson of config.commonLockfileJsr) {
+    const packageSpecifier = versionMetaJson?.meta?.packageSpecifier;
+    if (!packageSpecifier) {
+      throw `packageSpecifier required but not found in ${JSON.stringify(versionMetaJson)}`;
+    }
+
+    resultUnresolved.push(fetchJsr(config, versionMetaJson, packageSpecifier));
+
+    metaJsons = await makeMetaJson(versionMetaJson, packageSpecifier, metaJsons);
+  }
+
+  for (const metaJson of Object.values(metaJsons)) {
+    resultUnresolved.push(Promise.resolve([metaJson.packageFile]));
+    await writeMetaJson(config, metaJson);
+  }
+
+  await Promise.all(resultUnresolved).then((packageFiles) => {
+    result = result.concat(packageFiles.flat());
+  });
   return result;
 }

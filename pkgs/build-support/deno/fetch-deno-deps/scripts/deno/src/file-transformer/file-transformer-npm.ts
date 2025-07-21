@@ -1,6 +1,6 @@
-import { addPrefix, getScopedName } from "./utils.ts";
+import { addPrefix, getScopedName } from "../utils.ts";
 
-type Config = FileTransformerNpmConfig
+type Config = FileTransformerNpmConfig;
 function getConfig(): Config {
   const flagsParsed = {
     "in-path": "",
@@ -28,11 +28,10 @@ function getConfig(): Config {
     ),
     cachePath: flagsParsed["cache-path"],
     inPath: flagsParsed["in-path"],
-    inBasePath: flagsParsed["in-path"].split("/").slice(0,-1).join("/"),
+    inBasePath: flagsParsed["in-path"].split("/").slice(0, -1).join("/"),
     rootPath: `${flagsParsed["cache-path"]}/npm/registry.npmjs.org`,
   };
 }
-
 
 function makePackagePath(
   root: PathString,
@@ -67,10 +66,18 @@ async function transformFilesNpm(config: Config) {
     if (!packageSpecifier) {
       throw `packageSpecifier required but not found in ${JSON.stringify(packageFile)}`;
     }
-    await unpackPackage(config, packageSpecifier, addPrefix(config.inBasePath, packageFile.outPath));
-    // TODO: handle registry josn files differently
 
-    const outPath = makeRegistryJsonPath(config.rootPath, packageSpecifier);
+    const inPath = addPrefix(packageFile.outPath, config.inBasePath);
+    if (packageFile.url.endsWith("registry.json")) {
+      const outPath = makeRegistryJsonPath(config.rootPath, packageSpecifier);
+      await Deno.copyFile(inPath, outPath);
+    } else {
+      await unpackPackage(
+        config,
+        packageSpecifier,
+        inPath,
+      );
+    }
   }
 }
 
