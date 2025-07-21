@@ -10,4 +10,4 @@ if (!flags.text) {
   throw "--text required but not specified";
 }
 
-console.log(camelCase({ text: flags.text }));
+console.log(camelCase(flags.text));

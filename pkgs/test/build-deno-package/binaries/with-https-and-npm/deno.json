@@ -1,5 +1,5 @@
 {
-  "name": "binary build",
+  "name": "say",
   "tasks": {
       "build": "deno run --allow-all main.ts"
   },
