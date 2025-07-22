@@ -23,7 +23,7 @@
   fresh-init-cli-linux = buildDenoPackage {
     pname = "fresh-init-cli";
     version = "";
-    denoDepsHash = "sha256-qMMcVRbZq3GizEgUf71v/2KomvKPlusYyWMpmJ26mFM=";
+    denoDepsHash = "sha256-tHXBYYbUCVFNdwx2gldFBh9ZtibI/2kAP3XFOLDQkyw=";
     src = fetchFromGitHub {
       owner = "denoland";
       repo = "fresh";
@@ -37,7 +37,7 @@
   invidious-companion-cli-linux = buildDenoPackage {
     pname = "invidious-companion-cli";
     version = "";
-    denoDepsHash = "sha256-B49wqvUAoLSq/picuL5PbuyG6LNXK7zoiv5VQCwNLuM=";
+    denoDepsHash = "sha256-BEC3Ztu0xwAXnTfD5tjqWc5nkcGm6GW2OmECqOvo8Is=";
     src = fetchFromGitHub {
       owner = "iv-org";
       repo = "invidious-companion";
