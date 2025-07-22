@@ -85,8 +85,33 @@ export async function fetchDefaultWithTypes(
     throw `unsupported x-typescript-types url: ${typesUrl}`;
   }
 
-  const typesCache: Record<string, PackageFileOut> = {};
+  // for recursive async fetches with deduplication
+  const typesCacheSet: Set<string> = new Set();
+
+  async function parseImports(
+    filePath: PathString,
+    importedFromUrl: string,
+  ): Promise<Array<string>> {
+    const fileContent = await Deno.readTextFile(filePath);
+    const fileNamesRegex = /(?:"|')[a-zA-Z0-9_\.\-\/]+\.d\.ts(?:"|')/gm;
+    const importedFileNames = fileContent.match(fileNamesRegex);
+    if (importedFileNames === null) {
+      return [];
+    }
+
+    const importedFileUrls = importedFileNames
+      ?.map((v) => v.replaceAll(/"|'/g, ""))
+      .map((v) => normalizeUnixPath(`${getBasePath(importedFromUrl)}/${v}`));
+    return importedFileUrls;
+  }
+
   async function recursivelyFetchTypes(url: string) {
+    if (typesCacheSet.has(url)) {
+      return;
+    }
+
+    typesCacheSet.add(url);
+
     const typesPackageFile: PackageFileIn = {
       url,
       hash: "",
@@ -94,30 +119,20 @@ export async function fetchDefaultWithTypes(
       meta: { from: structuredClone(p) },
     };
 
-    if (Object.hasOwn(typesCache, url)) {
-      return;
-    }
-
     const fetched = await fetchDefault(config, typesPackageFile);
-    result.push(fetched);
-    typesCache[url] = fetched;
-
-    const fileContent = await Deno.readTextFile(
-      addPrefix(result.at(-1)?.outPath as string, config.outPathPrefix),
+    const importUrls = await parseImports(
+      addPrefix(fetched.outPath, config.outPathPrefix),
+      url,
     );
-    const fileNamesRegex = /(?:"|')[a-zA-Z0-9_\.\-\/]+\.d\.ts(?:"|')/gm;
-    const importedFileNames = fileContent.match(fileNamesRegex);
-    if (importedFileNames === null) {
-      return;
-    }
-    const importedFileUrls = importedFileNames
-      ?.map((v) => v.replaceAll(/"|'/g, ""))
-      .map((v) => normalizeUnixPath(`${getBasePath(url)}/${v}`));
+    result.push(fetched);
 
-    for (const url of importedFileUrls) {
-      await recursivelyFetchTypes(url)
-    }
+    const unresolved = importUrls.map((url) => recursivelyFetchTypes(url));
+    await Promise.all(unresolved);
   }
-  recursivelyFetchTypes(url);
+
+  await recursivelyFetchTypes(url);
+
+  // order of fetched types is not deterministic, but we need reproducible output
+  result.sort((a, b) => (a.url === b.url ? 0 : a.url < b.url ? -1 : 1));
   return result;
 }

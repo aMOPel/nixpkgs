@@ -5,10 +5,7 @@ export async function fetchAllHttps(
   config: Config,
 ): Promise<CommonLockFormatOut> {
   let result: CommonLockFormatOut = [];
-  const resultUnresolved: Array<Promise<CommonLockFormatOut>> = [];
-  for (const p of config.commonLockfileHttps) {
-    resultUnresolved.push(fetchDefaultWithTypes(config, p));
-  }
+  const resultUnresolved = config.commonLockfileHttps.map((p)=>fetchDefaultWithTypes(config, p))
 
   await Promise.all(resultUnresolved).then((packageFiles) => {
     const a = packageFiles.flat();
@@ -20,6 +17,5 @@ export async function fetchAllHttps(
     });
     result = result.concat(b);
   });
-  result.sort((a, b) => (a.url === b.url ? 0 : a.url < b.url ? -1 : 1));
   return result;
 }
