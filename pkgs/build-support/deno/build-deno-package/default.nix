@@ -78,7 +78,7 @@ in
 let
 
   inherit (callPackage ../fetch-deno-deps/scripts/deno/default.nix { }) fetch-deno-deps-scripts;
-  inherit (callPackage ../fetch-deno-deps/scripts/rust/deno-cache-dir-wrapper/default.nix { })
+  inherit (callPackage ../fetch-deno-deps/scripts/rust/file-transformer-vendor/default.nix { })
     file-transformer-vendor
     ;
 
