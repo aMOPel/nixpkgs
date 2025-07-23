@@ -36,5 +36,6 @@ rec {
     inherit (sub1) denoDeps src;
     denoWorkspacePath = "./sub1";
     binaryEntrypointPath = "./main.ts";
+    denoCompileFlags = [ "--allow-import=unpkg.com:443,jsr.io:443,deno.land:443,esm.sh:443" ];
   };
 }
