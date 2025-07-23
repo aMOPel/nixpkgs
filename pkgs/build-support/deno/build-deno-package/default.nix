@@ -13,6 +13,8 @@
 let
   vendorJsonName = "vendor.json";
   npmJsonName = "npm.json";
+  denoDir = ".deno";
+  vendorDir = "vendor";
 in
 {
   name ? "${args.pname}-${args.version}",
@@ -21,28 +23,13 @@ in
   denoDepsHash ? lib.fakeHash,
   # The host platform, the output binary is compiled for.
   hostPlatform ? stdenvNoCC.hostPlatform.system,
-  # A list of strings, which are names of impure env vars passed to the deps build.
-  # Example:
-  # `[ "NPM_TOKEN" ]`
-  # They will be forwarded to `deno install`.
-  # It can be used to set tokens for private NPM registries (in an `.npmrc` file).
-  # In multi user installations of Nix, you need to set the env vars in the daemon (probably with systemd).
-  # In nixos: `systemd.services.nix-daemon.environment.NPM_TOKEN = "<token>";`
-  denoDepsImpureEnvVars ? [ ],
-  # TODO: source overrides like in buildNpmPackage, i.e. injecting nix packages into the denoDeps
-  # this is more involved, since they can't directly be injected into the fixed output derivation
-  # of fetchDenoDeps. Instead we need to patch the lock file and remove the packages we intend to
-  # inject, then we need to build the rest of the packages like before and in a
-  # second step create normal derivation with the injected packages.
-  # then the two need to be merged into a single denoDeps derivation and finally the lock file needs
-  # to be reverted back to it's original form.
-  # It is possible to manipulate the registry.json files of the injected packages so that deno accepts them as is.
+  # TODO: impure env vars passthru for npm tokens and deno auth tokens
+  # TODO: source overrides like in buildNpmPackage
   denoDeps ? fetchDenoDeps {
     inherit
       vendorJsonName
       npmJsonName
       ;
-    impureEnvVars = denoDepsImpureEnvVars;
     denoLock = src + "/deno.lock";
     name = "${name}-deno-deps";
     hash = denoDepsHash;
@@ -80,16 +67,12 @@ in
   denoBuildHook ? null,
   # Custom denoInstallHook
   denoInstallHook ? null,
-  # Path to deno workspace, where the denoTaskScript should be run
+  # Path to deno workspace, where the denoTaskScript should be run, also used when compiling
   denoWorkspacePath ? null,
   # Unquoted string injected before `deno task`
   denoTaskPrefix ? "",
   # Unquoted string injected after `deno task` and all its flags
   denoTaskSuffix ? "",
-  # Used as the name of the local DENO_DIR
-  denoDir ? ".deno",
-  # Used as the name of the local vendor directory
-  vendorDir ? "vendor",
   ...
 }@args:
 let

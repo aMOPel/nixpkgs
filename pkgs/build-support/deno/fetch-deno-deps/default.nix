@@ -33,7 +33,6 @@ let
       transformedDenoLock,
       vendorJsonName,
       npmJsonName,
-      impureEnvVars ? [ ],
       denoLock,
       hash,
       name,
@@ -56,14 +55,6 @@ let
         fetch-deno-deps-scripts
       ];
 
-      impureEnvVars =
-        lib.fetchers.proxyImpureEnvVars
-        ++ [
-          # This variable allows the user to pass additional options to curl
-          "NIX_CURL_FLAGS"
-        ]
-        ++ impureEnvVars;
-
       SSL_CERT_FILE = "${cacert}/etc/ssl/certs/ca-bundle.crt";
 
       outputHashMode = "recursive";
@@ -78,7 +69,6 @@ in
       denoLock,
       name ? "deno-deps",
       hash ? lib.fakeHash,
-      impureEnvVars ? "",
       vendorJsonName,
       npmJsonName,
     }:
@@ -90,7 +80,6 @@ in
           denoLock
           transformedDenoLock
           hash
-          impureEnvVars
           vendorJsonName
           npmJsonName
           name
@@ -101,7 +90,6 @@ in
       inherit
         transformedDenoLock
         fetched
-        fetch-deno-deps-scripts
         ;
     };
 }

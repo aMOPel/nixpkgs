@@ -884,33 +884,37 @@ stdenv.mkDerivation (finalAttrs: {
 `buildDenoPackage` allows you to package [Deno](https://deno.com/) projects in Nixpkgs without the use of an auto-generated dependencies file (as used in [node2nix](#javascript-node2nix)).
 It works by utilizing Deno's cache functionality -- creating a reproducible cache that contains the dependencies of a project, and pointing Deno to it.
 
+::: {.important}
+
+There are a number of features that are supported by the Deno CLI, but not by this build helper.
+If a package uses one of those features, this build helper can't be used.
+
+- [`nodeModulesDir`](https://docs.deno.com/runtime/fundamentals/node/#node_modules) &
+[`--allow-scripts`](https://docs.deno.com/runtime/reference/CLI/add/#options-allow-scripts)
+- [private HTTPS repositories](https://docs.deno.com/runtime/fundamentals/modules/#private-repositories)
+- [`.npmrc`](https://docs.npmjs.com/CLI/v8/configuring-npm/npmrc)
+
+:::
+
 #### buildDenoDeps {#javascript-buildDenoPackage-buildDenoDeps}
 
 For every `buildDenoPackage`, first, a [fixed output derivation](https://nix.dev/manual/nix/2.18/language/advanced-attributes.html#adv-attr-outputHash) is
 created with all the dependencies mentioned in the `deno.lock`.
 This works as follows:
-1. The dependencies are fetched using nix and curl. (Read more [here](https://github.com/NixOS/nixpkgs/blob/master/pkgs/build-support/deno/fetch-deno-deps/readme.md))
-1. The fetched files are translated into a format that deno understands and form the output of `fetchDenoDeps`.
-1. The output is copied into the build of `buildDenoPackage`, which is not an FOD.
-1. The dependencies are installed again using `deno install`, from the local cache only.
-
-The `fetchDenoDeps` derivation is in `passthru`, so it can be accessed from a `buildDenoPackage` derivation with `.denoDeps`
+1. The `deno.lock` is parsed and transformed. (available as a passthru at `<packageBuild>.denoDeps.transformedDenoLock`)
+1. The dependencies are fetched using JavaScript. (available as a passthru at `<packageBuild>.denoDeps.fetched`)
+1. Inside the `buildDenoPackage` derivation
+  1. The fetched files are translated into a format that Deno understands.
+  1. The dependencies are installed again using `deno install`, from the local cache only.
 
 Deno differentiates between 3 kinds of dependencies:
 
 - `npm:` from <https://npmjs.com>
 - `jsr:` from <https://jsr.io>
-- `https:` from JavaScript CDNs
+- `https:` from JavaScript CDNs like:
   - `deno.land/x`
   - `esm.sh`
   - `unpkg.com`
-
-`fetchDenoDeps` parses the lock file and can use the hashes from it for
-`npm:` and `jsr:` dependencies.
-This means, for those dependencies, you don't need to specify a `denoDepsHash`.
-
-However, if your package uses `https:` dependencies, for technical reasons,
-`fetchDenoDeps` needs the `denoDepsHash`.
 
 Related options:
 
@@ -922,7 +926,7 @@ Related options:
 
 : The Flags passed to `deno install`.
 
-: _Default:_ `[ "--allow-scripts" "--frozen" "--cached-only" ]` for `buildDenoPackage`
+: _Default:_ `[ "--allow-scripts" "--frozen" "--cached-only" ]`
 
 ::: {.tip}
 If you receive errors like these:
@@ -975,73 +979,6 @@ buildDenoPackage {
 
 :::
 
-#### Private registries {#javascript-buildDenoPackage-private-registries}
-There is currently one options, which enables the use of private registries in a `buildDenoPackage` derivation.
-
-*`denoDepsImpureEnvVars`* (Array of strings; optional)
-
-: Names of impure environment variables passed to the `buildDenoDeps` derivation. They are forwarded to `deno install`.
-
-: _Example:_ `[ "NPM_TOKEN" ]`
-
-: It can be used to set tokens for private NPM registries (in a `.npmrc` file).
-
-: In a single-user installation of Nix, you can put the variables into the environment, when running the nix build.
-
-: In multi-user installations of Nix, it's necessary to set the environment variables in the nix-daemon, probably with systemd.
-
-:::{.example}
-
-##### configure nix-daemon {#javascript-buildDenoPackage-private-registries-daemon-example}
-In NixOS:
-
-```nix
-# configuration.nix
-{
-  config,
-  lib,
-  pkgs,
-  ...
-}:
-{
-  systemd.services.nix-daemon.environment.NPM_TOKEN = "<token>";
-}
-```
-
-In other Linux distributions use
-
-```
-$ sudo systemctl edit nix-daemon
-$ sudo systemctl cat nix-daemon
-$ sudo systemctl restart nix-daemon
-```
-
-:::
-
-:::{.example}
-
-##### example `.npmrc` {#javascript-buildDenoPackage-private-registries-npmrc-example}
-
-```ini
-@<scope>:registry=https://<domain>/<path to private registry>
-//<domain>/<path to private registry>:_authToken=${NPM_TOKEN}
-```
-
-:::
-
-::: {.note}
-The approach is not ideal. For `buildNpmPackage`, there exists a third
-option called `sourceOverrides`, which allows the user to inject Nix packages into
-the output `node_modules` folder.
-Since a Nix build implicitly uses the SSH keys of the machine,
-this offers a third option to access private packages.
-But this creates the requirement, that the imported package is packaged with nix first,
-and that the source code can be retrieved with SSH.
-This is possible for Deno, too, albeit it not
-completely analogous to `buildNpmPackage`'s solution.
-However, it has not been implemented yet.
-:::
-
 #### Compile to binary {#javascript-buildDenoPackage-compile-to-binary}
 
 It's possible to compile a Deno project to a single binary using `deno compile`.
@@ -1049,7 +986,8 @@ The binary will be named like the `.name` property in `deno.json`, if available,
 or the `name` attribute of the derivation.
 
 :::{.caution}
-It is possible that the deno upstream introduces changes to the `deno compile` command, which break reproducibility.
+It is possible that the Deno upstream introduces changes to the `deno compile` command, which inject
+non-reproducible information like timestamps into the binary, which breaks reproducibility.
 See [this issue](https://github.com/denoland/deno/issues/29619) for more information.
 :::
 
@@ -1088,9 +1026,7 @@ The binary is copied to `$out/bin` in the `installPhase`.
 
 : The package used as the Deno runtime, which is bundled with the JavaScript code to create the binary.
 
-: _Default:_ `pkgs.denort`
-
-: Don't use `pkgs.deno` for this, since that is the full Deno CLI, with all the development tooling.
+: _Default:_ `pkgs.deno`
 
 : If you're cross compiling, this needs to be the `denort` of the `hostPlatform`.
 
@@ -1253,10 +1189,6 @@ rec {
 :::
 
 #### Other Options {#javascript-buildDenoPackage-other-options}
-
-*`denoDir`* (String; optional)
-
-: `DENO_DIR` will be set to this value for all `deno` commands.
 
 *`denoFlags`* (Array of string; optional)
 
