@@ -3,9 +3,11 @@ let
 
 in
 pkgs.mkShell {
-  buildInputs = [ pkgs.deno pkgs.rustup ];
+  buildInputs = [
+    pkgs.deno
+    pkgs.rustup
+  ];
 
-  DENO_DIR="./.deno";
-  shellHook = ''
-  '';
+  DENO_DIR = "./.deno";
+  shellHook = '''';
 }
