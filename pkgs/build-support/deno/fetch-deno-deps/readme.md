@@ -1,5 +1,25 @@
 # Deno Custom Fetcher
 
+## "import from lock file" feature
+
+It's currently not feasible to have an "import from lock file" functionality.
+
+There are several technical problems, that make it currently impossible to build the
+dependencies without a hash provided in nix:
+
+1. Files from `x-typescript-types` headers are not listed in the lock file.
+1. The necessity in nixpkgs to split the "fetch FOD" from the "file transformation step", makes it impossible,
+   since we need to record the headers in a separate FOD and then transform the files in the another derivation using that information.
+   Since there is no information in the lock file about the headers, we have to copy the headers information to `$out` of the FOD,
+   which changes the hash, so we can't use the hashes from the lock file for all the fetches where we need to record the headers.
+1. JSR's API architecture requires us to create a FOD per file of a dependency (not per package, like NPM).
+   This provides great granular caching, but terrible performance when fetching, since the disc IO
+   quickly gets out of hand, with big JSR packages with hundreds of files.
+
+On top of that, this feature would require a complete reimplementation of all the fetching logic in Nix,
+which is a lot of effort, due to its complexity.
+And the maintenance effort would double, which is not desirable, since Deno's dependency cache API is still unstable.
+
 ## Formats
 
 This section documents what formats the
@@ -64,6 +84,10 @@ typescript 5.8.3
     },
     ...
   },
+  "redirects": {
+    "https://esm.sh/@opentelemetry/api@^1.4.0?target=denonext": "https://esm.sh/@opentelemetry/api@1.9.0?target=denonext",
+    ...
+  }
   "remote": {
     "https://deno.land/x/case@2.2.0/mod.ts": "28b0b1329c7b18730799ac05627a433d9547c04b9bfb429116247c60edecd97b",
     "https://deno.land/x/case@2.2.0/upperFirstCase.ts": "b964c2d8d3a85c78cd35f609135cbde99d84b9522a21470336b5af80a37facbd",
@@ -120,6 +144,9 @@ Therefore, we should not fetch them in a FOD.
 
 The Deno CLI requires these files, however, so we need to construct them from
 the information we get from the lock file.
+
+Since the same package can occur multiple times in the lock-file, with different versions,
+we have make sure, that for each version, there is an entry in `.versions`.
 
 #### `<version>_meta.json`
 
@@ -200,6 +227,14 @@ but the module graph can also look like this:
           "argument": "npm:esbuild-wasm@0.23.1",
           "argumentRange": [ ... ]
         },
+        {
+          "type": "dynamic",
+          "argument": [
+            {"type":"string","value":"npm:esbuild-wasm@0.23.1"},
+            {"type":"string","value":""}
+          ],
+          "argumentRange": [ ... ]
+        },
       ]
     },
     "/mod.ts": {
@@ -253,6 +288,18 @@ From there we can parse the module graph and construct a list of the files we ne
 Since the files in `.manifest` associate paths and integrity hashes,
 we can construct a list of `(url, hash)` pairs, from which we can construct FODs.
 
+To reduce the amount of fetched files, we can parse the moduleGraph.
+
+Required files can occur in multiple places:
+
+- importers: the keys of `.moduleGraph{1,2}`,
+- imported: the values of `.moduleGraph{1,2}.<path>.depedencies[i].{specifier,argument}`
+- exporters: the values of `.exports`
+
+By combining those three lists and making entries unique, we can create a list of all the
+required files, and only those. Mind that the values in `imported` use relative paths,
+so we need Unix path resolution logic to resolve those to absolute URLs, to fetch from.
+
 Like this we can fetch all necessary resources from the JSR, using just the information
 in the lock file, without needing to specify a hash in Nix.
 
@@ -269,13 +316,30 @@ associates them with the hashes of the files.
 
 There are some caveats to this, though.
 
+In the lock-file, it is possible, that a required URL only occurs in the values of `.redirects`,
+and not in the keys of `.remote`.
+
+I specifically observed this, [here](https://github.com/iv-org/invidious-companion/blob/d0c4bb79ae4688d019fb281257859e334adb7d8b/deno.lock#L431).
+This is probably related to the fact that an import from `esm.sh/@types/...` can be used by NPM packages in `.dependencies` as `npm:@types/...`.
+And this might not only be true for `esm.sh` or `@types`.
+
+That means generally the URLs for fetching should be obtained from a unique list of
+the values of `.redirects` and the keys of `.remote`.
+
+It also means, it is possible to not have no hash from the lock-file
+for some URLs.
+
 #### `esm.sh`
 
 ##### Extra query parameter
 
-Deno implicitly appends the query parameter `?target=denonext` to `esm.sh` URLs.
+Deno implicitly appends the query parameter `?target=denonext` to `esm.sh` URLs,
+if there is not already another `?target=` query parameter in the URL.
 
 We have to do the same, when we fetch the files.
+
+However, when passing a URL, to the Deno API to construct a vendor directory (see below),
+we have to use the original, unchanged URL.
 
 ##### Response headers
 
@@ -284,17 +348,18 @@ Also `esm.sh` requests can return a `X-Typescript-Types: <url>` header.
 Deno will read this header and fetch the `.d.ts` file at the `<url>` and
 add that file to the local cache folder.
 
+Mind that the `<url>` can be a relative path, which then has to be resolved respective to the
+URL, the fetch call was made to.
+
 This is unfortunate, since there is no hash for that `.d.ts` file in the lock file.
 
-**NOT IMPLEMENTED**: This would require a custom script, executed in a FOD.
-It has to be a two-step fetch, first fetching the file, then analyzing the response header
-and fetching again after.
-This can not be done using just `fetchurl` and a single hash.
+On top of that, Deno will recursively fetch all imported `.d.ts` files in that
+entrypoint-`.d.ts` file.
 
-#### private https repositories
+#### Private HTTPS repositories
 
-Deno supports [private https repositories](https://docs.deno.com/runtime/fundamentals/modules/#private-repositories)
-by associating `Bearer` tokens or `Basic` auth credentials with specific URLs in a
+Deno supports [private HTTPS repositories](https://docs.deno.com/runtime/fundamentals/modules/#private-repositories)
+by associating `Bearer` tokens or `Basic` auth credentials with specific URLs in an
 environment variable.
 
 It looks like this:
@@ -323,7 +388,7 @@ if file names use problematic characters.
 This scheme is currently implemented in rust and can be found
 [here (version at the time of writing)](https://github.com/denoland/deno_cache_dir/blob/0.23.0/rs_lib/src/local.rs#L557).
 
-There is a JavaScript wrapper library for it in the same repository, [available
+There is a JavaScript and Rust wrapper library for it in the same repository, [available
 at JSR](https://jsr.io/@deno/cache-dir/doc/~/HttpCache.prototype.set).
 
 It exposes these functions
@@ -342,7 +407,7 @@ HttpCache.prototype.set(
 ): void
 ```
 
-We use these functions to construct the vendor directory.
+We use these functions from Rust to construct the vendor directory.
 We just need to pass tuples of `(url, headers, file_content)` to the function,
 where `url` is the original URL used to fetch the file, `headers` are the response headers for that fetch,
 and `file_content` is read from our fetched files from the Nix store.
@@ -351,9 +416,10 @@ and `file_content` is read from our fetched files from the Nix store.
 
 On top of that, in the `vendor` directory, there is a `manifest.json`.
 
-**Format:**
-
+**Target Location:**
 `vendor/manifest.json`
+
+**Format:**
 
 ```json
 {
@@ -386,9 +452,9 @@ since we need to acquire those response headers in a FOD and copy them to `$out`
 so we can use them later. However, the hashes we have from the lock file are just
 for the files themselves, not for the response headers.
 
-From my testing, the response headers only occurred for https packages.
+From my testing, the response headers only occurred for HTTPS packages.
 
-This means for https packages, we can't use the hashes from the lock file, but
+This means for HTTPS packages, we can't use the hashes from the lock file, but
 instead have to **create a FOD with a hash given in Nix**.
 
 The `manifest.json` file itself is also created by the `HttpCache.prototype.set(...)` function mentioned above.
@@ -408,7 +474,6 @@ using the hash given in the lock file, we can fetch it in a FOD.
 - `https://registry.npmjs.org/<name>/-/<name>-<version>.tgz`
 - `https://registry.npmjs.org/@<scope>/<name>/-/<name>-<version>.tgz`
 
-
 **Target Location**:
 
 - `$DENO_DIR/npm/registry.npmjs.org/<name>/<version>`
@@ -422,8 +487,7 @@ the files.
 Deno uses a subset of the JSON file located at the following URL at the NPM registry
 and calls it `registry.json`.
 
-Deno requires this file to be present for all directly imported NPM packages.
-The `.specifiers` field in the lock file, tells us, which packages were directly imported.
+Deno requires this file to be present for all NPM packages.
 
 **URL**:
 
@@ -471,6 +535,9 @@ Deno's `registry.json` file
 
 Those files are mutable. They have a `.version` field, which holds the currently available versions of a package.
 So instead of fetching that file, we have to construct it from the available information.
+
+Like with the `meta.json` file, we have make sure,
+that for each version a package occurs in the lock-file, there is an entry in `.versions`.
 
 Fortunately, Deno doesn't need all the fields or the information in them,
 so we can put empty values for some and omit the field altogether for others.

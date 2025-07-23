@@ -1,7 +1,6 @@
-# Standardized custom fetcher for language build helpers
+# Proposal for better documentation of custom fetcher architecture for language build helpers
 
-The document specifies the structure of a standardized custom fetcher architecture
-for language build helpers in Nixpkgs.
+What are
 
 ## Current problems
 
@@ -35,140 +34,118 @@ To do this, we need to decouple the fetching step from all the other language-sp
 logic, so that a change to any format the package manager uses, does not require
 a change to the hash of the FOD.
 
-## Idea
+### Import from derivation (IFD) and "import from lock file" feature
 
-The idea is to provide a few Nixpkgs lib functions, which should be used
-for new custom fetchers for language build helpers. Those functions provide
-an interface which encourages building the custom fetcher in a way
-that circumvents the above-mentioned problems.
+**What is IFD:**
 
-### Interface
+<https://nix.dev/manual/nix/2.23/language/import-from-derivation>
 
-**NOTE:** The chosen function/key names serve as placeholders.
+IFD forbids us to read a file from a derivation in Nix code.
 
-Generally speaking there are 2 ways to use FODs to fetch dependencies:
+IFD is forbidden in nixpkgs due to performance implications.
+This means a build helper has to provide an IFD-free build.
 
-1. Use one hash and one FOD, containing all dependencies
-2. Use hashes from a lock file and many FODs,
-   one per lock file hash.
+So the entire logic to parse the lock file and fetch all dependencies,
+has to be run inside one or multiple derivations and can never "go back up" into
+the Nix realm.
 
-The proposed interface supports both ways and allows to even combine them.
+The derivation containing the fetched files, then is an input to the derivation
+building the package.
 
-A call to the interface looks like this
+---
 
-```nix
-buildHelperFetcher packages
-```
+**What is "import from lock file":**
+By default to fetch anything from the internet in nixpkgs, you need a fixed output derivation, which
+requires an outputHash to verify, that the output did not change compared to last time.
 
-where `packages` looks like this
+For a build helper this means, when we want to download the depedencies of a
+package, we need to provide at least one hash.
 
-```nix
-{
-    withOneHash = schema1;
-    withHashPerFile = schema2;
-    preFetched = schema3;
-};
-```
+This is a nuisance, since we need to manually change the hash each time the dependencies change.
+For a package maintained in nixpkgs it does not occur that often, however if the build-helper is used
+when developing a package, it does.
 
-and `schema1` looks like this
+Since there are usually integrity hashes for packages in lock files,
+we could theoretically just use those, and circumvent having to specify a hash
+in Nix.
 
-```nix
-{
-    hash = ""; # (optional) top level hash, required for `withOneHash`
-    curlOpts = ""; # (optional) global curl opts, passed to all curl calls
-    curlOptsList = []; # (optional) global curl opts, passed to all curl calls
-    meta = { }; # (optional) object of arbitrary shape that is passed through
-    # derivation = null; # (filled in by `fetcher`), top level derivation
-    packagesFiles = [
-      {
-        url = ""; # (required)
-        # outPath = ""; # (filled in by `fetcher`), `<top level derivation path>/<file path>`
-        curlOpts = ""; # (optional) global curl opts, passed to all curl calls
-        curlOptsList = []; # (optional) global curl opts, passed to all curl calls
-        meta = { # (optional) object of arbitrary shape that is passed through
-          packageName = ""; # (example)
-          fileName = ""; # (example)
-        };
-      }
-      # ...
-    ];
-  };
-```
+To do that, we need to parse the lock file in Nix and then create separate FODs
+one per `(url, hash)` and then we still need to collect all those FODs and
+associate them with enough meta information to enable us to transform them
+into a file structure, that the language's package manager will understand.
 
-and `schema2` looks like this
+Creating many FODs can have serious performance implications, since each FOD
+is means a new build container and build environment etc. So the disk IO can
+escalate if this goes into the thousands.
 
-```nix
-{
-    curlOpts = ""; # (optional) global curl opts, passed to all curl calls
-    curlOptsList = []; # (optional) global curl opts, passed to all curl calls
-    meta = { }; # (optional) object of arbitrary shape that is passed through
-    packagesFiles = [
-      {
-        url = ""; # (required)
-        # outPath = ""; # (filled in by `fetcher`), `<file level derivation path>/<file path>`
-        # derivation = null; # (filled in by `fetcher`), file level derivation
-        hash = ""; # (required)
-        curlOpts = ""; # (optional) global curl opts, passed to all curl calls
-        curlOptsList = []; # (optional) global curl opts, passed to all curl calls
-        meta = { # (optional) object of arbitrary shape that is passed through
-          packageName = ""; # (example)
-          fileName = ""; # (example)
-        };
-      }
-      # ...
-    ];
-  };
-```
+---
 
-and `schema3` looks like this
+**packaging in nixpkgs vs packaging while developing:**
 
-```nix
-{
-    meta = { }; # (optional) object of arbitrary shape that is passed through
-    packagesFiles = [
-      {
-        url = ""; # (required)
-        outPath = ""; # (required)
-        derivation = null; # (required)
-        meta = { # (optional) object of arbitrary shape that is passed through
-          packageName = ""; # (example)
-          fileName = ""; # (example)
-        };
-      }
-      # ...
-    ];
-  };
-```
+There are two different user scenarios to consider:
 
-So for URLs in `withOneHash`, `fetcher` will construct a single FOD, use the top level hash
-and make curl calls for all the URLs.
+1. Package maintainers in nixpkgs, that want to package some remote source code
+in a nix build using the build-helper.
 
-For `withHashPerFile`, `fetcher` will construct one FODs per `(url, hash)` pair and fetch that.
+Since they can't use IFD, they can't just fetch the source code in a build and then import that lock file in Nix.
 
-In both cases, each file gets the `outPath` property filled in by `fetcher`,
-which points to the fetched file.
+This usually means, they either provide the hash manually.
+But sometimes they vendor (hard copy) the lock file in the nixpkgs repo and would like
+to not avoid specifying the hash manually.
 
-The files in `preFetched` are left alone by the fetcher. This key can be useful,
-if some files have to be fetched beforehand, and you want to use those files through the
-same interface.
+Sometimes they have to vendor the lock file, since the remote source code, does
+not have lock file and they have to generate it first.
 
-With a utility function:
+2. Developers, writing their own language package, that want to package their
+local code into a nix build using the build-helper.
 
-```nix
-toPackagesFilesList (buildHelperFetcher packages)
-```
+Developers usually don't care about IFD, but they do care about the nuisance
+of having to manually change the hash every time they import a new package
+while developing.
 
-the `.packagesFiles` lists are extracted and concatenated,
-which provides a single list of objects, holding all necessary data to construct
-the folder structure that the language-specific package manager expects.
+---
 
-### Usage
+**Problem:**
 
-There are generally 3 steps to construct a custom fetcher with this interface:
+So to summarize:
 
-1. Parse a lock file or other files listing dependencies and transform the data
-   into the data structure outlined above.
-2. Pass the data structure to the `fetcher` function.
-3. Make a new derivation to map the list of fetched files to the folder structure that the
-   language-specific package manager expects, by using the `outPath` nix store paths
-   and other (meta) data associated with the file.
+To provide the package maintainers with the functionality they require,
+we have to write the entire logic to parse the lock file and fetch the files,
+in a way that it can be executed inside a derivation, because of the IFD constraint.
+
+And to provide the developers with the functionality the would like,
+we have to write the logic purely in Nix.
+
+So we end up with two implementations, doing basically the same thing
+but slightly different.
+
+## Approach
+
+![architecture diagram](./builder-architecture.drawio.svg)
+
+As a horizontal line, we see a divide between eval time and build time.
+
+It's important to differentiate here, because everything in eval time,
+is written in Nix and everything in build time is executed in a build container,
+using some language different from Nix.
+
+Also, whenever we have data flow from build time to eval time, we do an IFD.
+
+The separation of the 3 concerns
+1. lock file transformation
+2. fetching
+3. directory structure transformation
+
+Stems from the first two problems above:
+- "FOD caching causes rebuild delay"
+- "Breaking FODs as few times as possible"
+Since we want to break FODs as few times as possible, we need to separate the
+fetching step from
+the lock file parsing step and the directory structure transformation step.
+
+The directory structure transformation step happens during the package build
+to avoid having to cache the same files twice, once from step 2 and once from
+step 3. This is important to reduce load on the nixpkgs cache servers.
+
+As we can see, to not have IFD, and to have an "import from lock" fetcher,
+we need two separate implementations of step 1 and step 2, one running at build time, one running at eval time.
