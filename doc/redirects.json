@@ -3393,9 +3393,6 @@
   "javascript-buildDenoPackage-workspaces-example": [
     "index.html#javascript-buildDenoPackage-workspaces-example"
   ],
-  "javascript-buildDenoPackage-private-registries": [
-    "index.html#javascript-buildDenoPackage-private-registries"
-  ],
   "javascript-buildDenoPackage-buildDenoDeps": [
     "index.html#javascript-buildDenoPackage-buildDenoDeps"
   ],
@@ -3404,12 +3401,6 @@
   ],
   "javascript-buildDenoPackage-artifacts-in-build-example": [
     "index.html#javascript-buildDenoPackage-artifacts-in-build-example"
-  ],
-  "javascript-buildDenoPackage-private-registries-daemon-example": [
-    "index.html#javascript-buildDenoPackage-private-registries-daemon-example"
-  ],
-  "javascript-buildDenoPackage-private-registries-npmrc-example": [
-    "index.html#javascript-buildDenoPackage-private-registries-npmrc-example"
   ],
   "javascript-buildDenoPackage-compile-to-binary-example": [
     "index.html#javascript-buildDenoPackage-compile-to-binary-example"
