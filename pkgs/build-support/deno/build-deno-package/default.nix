@@ -78,7 +78,9 @@ in
 let
 
   inherit (callPackage ../fetch-deno-deps/scripts/deno/default.nix { }) fetch-deno-deps-scripts;
-  inherit (callPackage ../fetch-deno-deps/scripts/rust/deno-cache-dir-wrapper/default.nix { }) deno-cache-dir-wrapper;
+  inherit (callPackage ../fetch-deno-deps/scripts/rust/deno-cache-dir-wrapper/default.nix { })
+    file-transformer-vendor
+    ;
 
   denoFlags_ = builtins.concatStringsSep " " denoFlags;
   denoTaskFlags_ = builtins.concatStringsSep " " denoTaskFlags;
@@ -145,7 +147,7 @@ stdenvNoCC.mkDerivation (
       zip
       jq
       fetch-deno-deps-scripts
-      deno-cache-dir-wrapper
+      file-transformer-vendor
     ];
 
     DENO_DIR = denoDir;

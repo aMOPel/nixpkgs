@@ -1,5 +1,5 @@
 [package]
-name = "deno-cache-dir-wrapper"
+name = "file-transformer-vendor"
 version = "0.1.0"
 edition = "2024"
 
