@@ -13,6 +13,7 @@ function getConfig(): Config {
     "in-path-jsr": "",
     "in-path-npm": "",
     "in-path-https": "",
+    "in-jsr-registry-url": "https://jsr.io",
     "out-path-vendored": "",
     "out-path-npm": "",
     "out-path-prefix": "",
@@ -31,21 +32,23 @@ function getConfig(): Config {
     }
   });
 
+  const dec = new TextDecoder()
   return {
     commonLockfileJsr: JSON.parse(
-      new TextDecoder().decode(Deno.readFileSync(flagsParsed["in-path-jsr"])),
+      dec.decode(Deno.readFileSync(flagsParsed["in-path-jsr"])),
     ),
     commonLockfileNpm: JSON.parse(
-      new TextDecoder().decode(Deno.readFileSync(flagsParsed["in-path-npm"])),
+      dec.decode(Deno.readFileSync(flagsParsed["in-path-npm"])),
     ),
     commonLockfileHttps: JSON.parse(
-      new TextDecoder().decode(Deno.readFileSync(flagsParsed["in-path-https"])),
+      dec.decode(Deno.readFileSync(flagsParsed["in-path-https"])),
     ),
     outPathVendored: flagsParsed["out-path-vendored"],
     outPathNpm: flagsParsed["out-path-npm"],
     inPathJsr: flagsParsed["in-path-jsr"],
     inPathNpm: flagsParsed["in-path-npm"],
     inPathHttps: flagsParsed["in-path-https"],
+    inJsrRegistryUrl: flagsParsed["in-jsr-registry-url"],
     outPathPrefix: flagsParsed["out-path-prefix"] || "",
   };
 }
@@ -53,9 +56,9 @@ function getConfig(): Config {
 type Lockfiles = { vendor: CommonLockFormatOut; npm: CommonLockFormatOut };
 async function fetchAll(config: Config): Promise<Lockfiles> {
   const lockfilesByRegistry = {
-    jsr: await fetchAllJsr(config),
-    https: await fetchAllHttps(config),
-    npm: await fetchAllNpm(config),
+    jsr: await fetchAllJsr(config.outPathPrefix, config.commonLockfileJsr, config.inJsrRegistryUrl),
+    https: await fetchAllHttps(config.outPathPrefix, config.commonLockfileHttps),
+    npm: await fetchAllNpm(config.outPathPrefix, config.commonLockfileNpm),
   };
 
   const lockfilesByCache = {
@@ -66,20 +69,27 @@ async function fetchAll(config: Config): Promise<Lockfiles> {
   return lockfilesByCache;
 }
 
-async function main() {
-  const config = getConfig();
+async function fetchAndWrite(config: Config) {
   await Deno.mkdir(config.outPathPrefix, { recursive: true });
   const lockfiles = await fetchAll(config);
-  await Deno.writeTextFile(
-    addPrefix(config.outPathVendored, config.outPathPrefix),
-    JSON.stringify(lockfiles.vendor),
-    { create: true },
-  );
-  await Deno.writeTextFile(
-    addPrefix(config.outPathNpm, config.outPathPrefix),
-    JSON.stringify(lockfiles.npm),
-    { create: true },
-  );
+  const promises = [
+    Deno.writeTextFile(
+      addPrefix(config.outPathVendored, config.outPathPrefix),
+      JSON.stringify(lockfiles.vendor, null, 2),
+      { create: true },
+    ),
+    Deno.writeTextFile(
+      addPrefix(config.outPathNpm, config.outPathPrefix),
+      JSON.stringify(lockfiles.npm, null, 2),
+      { create: true },
+    ),
+  ];
+  await Promise.all(promises);
+}
+
+async function main() {
+  const config = getConfig();
+  await fetchAndWrite(config);
 }
 
 if (import.meta.main) {

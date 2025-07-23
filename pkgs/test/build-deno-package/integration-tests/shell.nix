@@ -5,7 +5,8 @@ in
 pkgs.mkShell {
   buildInputs = with pkgs; [
     deno
-    rustup
+    diff-so-fancy
+    static-web-server
   ];
 
   DENO_DIR = "./.deno";

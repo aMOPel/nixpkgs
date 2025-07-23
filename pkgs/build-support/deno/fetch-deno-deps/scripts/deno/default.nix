@@ -13,7 +13,7 @@ in
       scripts = {
         lockfile-transformer = "./src/lockfile-transformer/lockfile-transformer.ts";
         single-fod-fetcher = "./src/fetcher/single-fod-fetcher.ts";
-        file-transformer-npm = "./src/file-transformer/file-transformer-npm.ts";
+        file-structure-transformer-npm = "./src/file-structure-transformer/file-structure-transformer-npm.ts";
       };
       wrappers = builtins.concatStringsSep "\n" (
         builtins.attrValues (
@@ -26,7 +26,13 @@ in
     stdenvNoCC.mkDerivation {
       pname = denoJson.name;
       inherit (denoJson) version;
-      src = lib.sourceFilesBySuffices ./. [ ".ts" ];
+      src = lib.fileset.toSource {
+        root = ./.;
+        fileset = lib.fileset.unions [
+          ./src
+          ./deno.json
+        ];
+      };
       buildPhase =
         ''
           mkdir -p $out;

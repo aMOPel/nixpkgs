@@ -55,11 +55,15 @@ function parsePackageSpecifier(fullString: string): PackageSpecifier {
 }
 
 function makeVersionMetaJsonUrl(packageSpecifier: PackageSpecifier): UrlString {
-  return `https://jsr.io/${getScopedName(packageSpecifier)}/${packageSpecifier.version}_meta.json`;
+  return `https://jsr.io/${
+    getScopedName(packageSpecifier)
+  }/${packageSpecifier.version}_meta.json`;
 }
 
 function makeNpmPackageUrl(packageSpecifier: PackageSpecifier): UrlString {
-  return `https://registry.npmjs.org/${getScopedName(packageSpecifier)}/-/${packageSpecifier.name}-${packageSpecifier.version}.tgz`;
+  return `https://registry.npmjs.org/${
+    getScopedName(packageSpecifier)
+  }/-/${packageSpecifier.name}-${packageSpecifier.version}.tgz`;
 }
 
 function makeJsrCommonLock(denolock: DenoLock): CommonLockFormatIn {
@@ -125,7 +129,7 @@ function transformHttpsPackageFile(p: PackageFileIn): PackageFileIn {
         url.searchParams.set("target", "denonext");
       }
       result.url = url.toString();
-      result.meta = { ...p.meta, original: structuredClone(p) };
+      result.meta = { ...p.meta, original_url: p.url };
       return result;
     },
     default: function (p: PackageFileIn): PackageFileIn {
@@ -133,8 +137,8 @@ function transformHttpsPackageFile(p: PackageFileIn): PackageFileIn {
     },
   };
   function pickTransformer(p: PackageFileIn): PackageFileIn {
-    const transformer =
-      transformers[p.meta.registry] || transformers["default"];
+    const transformer = transformers[p.meta.registry] ||
+      transformers["default"];
     return transformer(p);
   }
   return pickTransformer(p);
@@ -144,22 +148,6 @@ function makeHttpsCommonLock(denolock: DenoLock): CommonLockFormatIn {
   const result: Record<string, PackageFileIn> = {};
   if (!denolock.remote) {
     return [];
-  }
-  if (denolock.redirects) {
-    Object.entries(denolock.redirects).forEach(([original, redirect]) => {
-      const url = redirect;
-      const registry = getRegistry(url);
-      const hash = "";
-      const hashAlgo = "sha256";
-      result[url] = transformHttpsPackageFile({
-        url,
-        hash,
-        hashAlgo,
-        meta: {
-          registry,
-        },
-      });
-    });
   }
   Object.entries(denolock.remote).forEach(([url, hash]) => {
     const registry = getRegistry(url);
@@ -177,20 +165,66 @@ function makeHttpsCommonLock(denolock: DenoLock): CommonLockFormatIn {
   return Object.values(result);
 }
 
-async function main() {
-  const config = getConfig();
-  const transformedLockJsr = makeJsrCommonLock(config.lockfile);
-  const transformedLockNpm = makeNpmCommonLock(config.lockfile);
-  const transformedLockHttps = makeHttpsCommonLock(config.lockfile);
+type TransformedLocks = {
+  jsr: CommonLockFormatIn;
+  npm: CommonLockFormatIn;
+  https: CommonLockFormatIn;
+};
+function transformAll(lockfile: DenoLock): TransformedLocks {
+  return {
+    jsr: makeJsrCommonLock(lockfile),
+    npm: makeNpmCommonLock(lockfile),
+    https: makeHttpsCommonLock(lockfile),
+  };
+}
+
+async function writeAll(
+  outPathJsr: PathString,
+  outPathNpm: PathString,
+  outPathHttps: PathString,
+  transformedLocks: TransformedLocks,
+) {
   const promises = [
-    Deno.writeTextFile(config.outPathJsr, JSON.stringify(transformedLockJsr)),
-    Deno.writeTextFile(config.outPathNpm, JSON.stringify(transformedLockNpm)),
     Deno.writeTextFile(
-      config.outPathHttps,
-      JSON.stringify(transformedLockHttps),
+      outPathJsr,
+      JSON.stringify(transformedLocks.jsr, null, 2),
+    ),
+    Deno.writeTextFile(
+      outPathNpm,
+      JSON.stringify(transformedLocks.npm, null, 2),
+    ),
+    Deno.writeTextFile(
+      outPathHttps,
+      JSON.stringify(transformedLocks.https, null, 2),
     ),
   ];
   await Promise.all(promises);
+}
+
+const knownVersions = ["4", "5"];
+
+function checkVersion(lockfile: DenoLock) {
+  if (!knownVersions.includes(lockfile.version)) {
+    console.error(`
+      WARNING: using deno.lock with a version unknown by nixpkgs buildDenoPackage: "${lockfile.version}"
+
+      The build might fail because of this.
+
+      Consider creating an issue in nixpkgs, if it there is not already one for that version.
+`);
+  }
+}
+
+async function main() {
+  const config = getConfig();
+  checkVersion(config.lockfile);
+  const transformedLocks = transformAll(config.lockfile);
+  await writeAll(
+    config.outPathJsr,
+    config.outPathNpm,
+    config.outPathHttps,
+    transformedLocks,
+  );
 }
 
 if (import.meta.main) {

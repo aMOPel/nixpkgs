@@ -1,7 +1,5 @@
 import { addPrefix, getBasePath, isPath, normalizeUnixPath } from "../utils.ts";
 
-type Config = SingleFodFetcherConfig;
-
 // https://github.com/denoland/deno_cache_dir/blob/0.23.0/rs_lib/src/local.rs#L802
 const keepHeaders = [
   "content-type",
@@ -19,7 +17,7 @@ export async function makeOutPath(p: PackageFileIn): Promise<string> {
 }
 
 export async function fetchDefault(
-  config: Config,
+  outPathPrefix: PathString,
   p: PackageFileIn,
   outPath_?: PathString,
 ): Promise<PackageFileOut> {
@@ -27,7 +25,7 @@ export async function fetchDefault(
   if (outPath === undefined) {
     outPath = await makeOutPath(p);
   }
-  const file = await Deno.open(addPrefix(outPath, config.outPathPrefix), {
+  const file = await Deno.open(addPrefix(outPath, outPathPrefix), {
     write: true,
     create: true,
     truncate: true,
@@ -37,14 +35,11 @@ export async function fetchDefault(
   if (!response.ok) {
     throw `fetch to ${p.url} failed`;
   }
-  let headers: Record<string, string> | undefined = undefined;
+  const headers: Record<string, string> = {};
 
   for (const [key, value] of response.headers.entries()) {
     const keyLower = key.toLowerCase();
     if (keepHeaders.includes(keyLower)) {
-      if (headers === undefined) {
-        headers = {};
-      }
       headers[keyLower] = value;
     }
   }
