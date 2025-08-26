@@ -53,7 +53,7 @@ function getConfig(): Config {
 type Lockfiles = { vendor: CommonLockFormatOut; npm: CommonLockFormatOut };
 async function fetchAll(config: Config): Promise<Lockfiles> {
   const lockfilesByRegistry = {
-    jsr: await fetchAllJsr(config),
+    jsr: await fetchAllJsr(config.outPathPrefix, config.commonLockfileJsr),
     https: await fetchAllHttps(config),
     npm: await fetchAllNpm(config),
   };

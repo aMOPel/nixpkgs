@@ -7,7 +7,6 @@ import {
   normalizeUnixPath,
 } from "../utils.ts";
 
-type Config = SingleFodFetcherConfig;
 function makeJsrPackageFileUrl(
   packageSpecifier: PackageSpecifier,
   filePath: string,
@@ -20,10 +19,10 @@ function makeMetaJsonUrl(packageSpecifier: PackageSpecifier): string {
 }
 
 async function fetchVersionMetaJson(
-  config: Config,
+  outPathPrefix: PathString,
   versionMetaJson: PackageFileIn,
 ): Promise<PackageFileOut> {
-  return await fetchDefault(config, versionMetaJson);
+  return await fetchDefault(outPathPrefix, versionMetaJson);
 }
 
 function makeMetaJsonContent(packageSpecifier: PackageSpecifier): MetaJson {
@@ -40,12 +39,12 @@ function makeMetaJsonContent(packageSpecifier: PackageSpecifier): MetaJson {
 }
 
 async function getFilesAndHashesUsingModuleGraph(
-  config: Config,
+  outPathPrefix: PathString,
   versionMetaJson: PackageFileOut,
 ): Promise<Record<string, string>> {
   const parsedVersionMetaJson: VersionMetaJson = JSON.parse(
     await Deno.readTextFile(
-      addPrefix(versionMetaJson.outPath, config.outPathPrefix),
+      addPrefix(versionMetaJson.outPath, outPathPrefix),
     ),
   );
   const moduleGraph =
@@ -112,14 +111,14 @@ async function getFilesAndHashesUsingModuleGraph(
 }
 
 async function fetchJsrPackageFiles(
-  config: Config,
+  outPathPrefix: PathString,
   versionMetaJson: PackageFileOut,
   packageSpecifier: PackageSpecifier,
 ): Promise<Array<PackageFileOut>> {
   let result: Array<PackageFileOut> = [];
   const resultUnresolved: Array<Promise<PackageFileOut>> = [];
   const files = await getFilesAndHashesUsingModuleGraph(
-    config,
+    outPathPrefix,
     versionMetaJson,
   );
   for (const [filePath, hash] of Object.entries(files)) {
@@ -129,22 +128,22 @@ async function fetchJsrPackageFiles(
       hashAlgo: "sha256",
       meta: { packageSpecifier },
     };
-    resultUnresolved.push(fetchDefault(config, packageFile));
+    resultUnresolved.push(fetchDefault(outPathPrefix, packageFile));
   }
   result = await Promise.all(resultUnresolved);
   return result;
 }
 
 export async function fetchJsr(
-  config: Config,
+  outPathPrefix: PathString,
   versionMetaJson: PackageFileIn,
   packageSpecifier: PackageSpecifier,
 ): Promise<CommonLockFormatOut> {
   let result: Array<PackageFileOut> = [];
-  result[0] = await fetchVersionMetaJson(config, versionMetaJson);
+  result[0] = await fetchVersionMetaJson(outPathPrefix, versionMetaJson);
 
   result = result.concat(
-    await fetchJsrPackageFiles(config, result[0], packageSpecifier),
+    await fetchJsrPackageFiles(outPathPrefix, result[0], packageSpecifier),
   );
   return result;
 }
@@ -198,10 +197,10 @@ async function makeMetaJson(
   return metaJsons;
 }
 
-async function writeMetaJson(config: Config, metaJsonData: MetaJsonData) {
+async function writeMetaJson(outPathPrefix: PathString, metaJsonData: MetaJsonData) {
   const path = addPrefix(
     metaJsonData.packageFile.outPath,
-    config.outPathPrefix,
+    outPathPrefix,
   );
 
   const data = new TextEncoder().encode(JSON.stringify(metaJsonData.content));
@@ -209,19 +208,20 @@ async function writeMetaJson(config: Config, metaJsonData: MetaJsonData) {
 }
 
 export async function fetchAllJsr(
-  config: Config,
+  outPathPrefix: PathString,
+  commonLockfileJsr: CommonLockFormatIn,
 ): Promise<CommonLockFormatOut> {
   let result: CommonLockFormatOut = [];
   const resultUnresolved: Array<Promise<CommonLockFormatOut>> = [];
   let metaJsons: MetaJsonsData = {};
 
-  for (const versionMetaJson of config.commonLockfileJsr) {
+  for (const versionMetaJson of commonLockfileJsr) {
     const packageSpecifier = versionMetaJson?.meta?.packageSpecifier;
     if (!packageSpecifier) {
       throw `packageSpecifier required but not found in ${JSON.stringify(versionMetaJson)}`;
     }
 
-    resultUnresolved.push(fetchJsr(config, versionMetaJson, packageSpecifier));
+    resultUnresolved.push(fetchJsr(outPathPrefix, versionMetaJson, packageSpecifier));
 
     metaJsons = await makeMetaJson(
       versionMetaJson,
@@ -232,7 +232,7 @@ export async function fetchAllJsr(
 
   for (const metaJson of Object.values(metaJsons)) {
     resultUnresolved.push(Promise.resolve([metaJson.packageFile]));
-    await writeMetaJson(config, metaJson);
+    await writeMetaJson(outPathPrefix, metaJson);
   }
 
   await Promise.all(resultUnresolved).then((packageFiles) => {
