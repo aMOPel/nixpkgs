@@ -49,7 +49,7 @@ in
   # Flags to pass to `deno task [denoTaskFlags] ${denoTaskScript}`.
   denoTaskFlags ? [ ],
   # Flags to pass to `deno compile [denoTaskFlags] ${binaryEntrypointPath}`.
-  denoCompileFlags ? [ ],
+  denoCompileFlags ? [ "--no-check" ],
   # Flags to pass to `deno install [denoInstallFlags]`.
   denoInstallFlags ? [
     "--frozen"

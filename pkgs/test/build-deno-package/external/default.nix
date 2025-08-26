@@ -23,7 +23,7 @@
   fresh-init-cli-linux = buildDenoPackage {
     pname = "fresh-init-cli";
     version = "";
-    denoDepsHash = "sha256-tHXBYYbUCVFNdwx2gldFBh9ZtibI/2kAP3XFOLDQkyw=";
+    denoDepsHash = "sha256-ErpbZ0RSQEf5oXvXAoqIW9WUt92+8fqVzWxeESC6sK4=";
     src = fetchFromGitHub {
       owner = "denoland";
       repo = "fresh";
@@ -37,7 +37,7 @@
   invidious-companion-cli-linux = buildDenoPackage {
     pname = "invidious-companion-cli";
     version = "";
-    denoDepsHash = "sha256-BEC3Ztu0xwAXnTfD5tjqWc5nkcGm6GW2OmECqOvo8Is=";
+    denoDepsHash = "sha256-m7qEJjvekDcBBZBKM01LiE7+okJEIQJzEhAtt/Xizdk=";
     src = fetchFromGitHub {
       owner = "iv-org";
       repo = "invidious-companion";
@@ -54,6 +54,7 @@
       "--allow-read"
       "--allow-sys=hostname"
       "--allow-write=/var/tmp/youtubei.js"
+      "--no-check"
     ];
     denoInstallFlags = [
       "--allow-scripts"
