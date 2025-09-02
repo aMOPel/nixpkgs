@@ -66,20 +66,27 @@ async function fetchAll(config: Config): Promise<Lockfiles> {
   return lockfilesByCache;
 }
 
-async function main() {
-  const config = getConfig();
+async function fetchAndWrite(config: Config) {
   await Deno.mkdir(config.outPathPrefix, { recursive: true });
   const lockfiles = await fetchAll(config);
-  await Deno.writeTextFile(
-    addPrefix(config.outPathVendored, config.outPathPrefix),
-    JSON.stringify(lockfiles.vendor),
-    { create: true },
-  );
-  await Deno.writeTextFile(
-    addPrefix(config.outPathNpm, config.outPathPrefix),
-    JSON.stringify(lockfiles.npm),
-    { create: true },
-  );
+  const promises = [
+    Deno.writeTextFile(
+      addPrefix(config.outPathVendored, config.outPathPrefix),
+      JSON.stringify(lockfiles.vendor),
+      { create: true },
+    ),
+    Deno.writeTextFile(
+      addPrefix(config.outPathNpm, config.outPathPrefix),
+      JSON.stringify(lockfiles.npm),
+      { create: true },
+    ),
+  ];
+  await Promise.all(promises);
+}
+
+async function main() {
+  const config = getConfig();
+  await fetchAndWrite(config);
 }
 
 if (import.meta.main) {
