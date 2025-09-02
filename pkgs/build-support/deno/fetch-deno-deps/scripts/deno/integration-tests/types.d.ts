@@ -5,6 +5,10 @@ export type VirtualFile = {
   content: string;
   isReal: boolean;
 };
+export type Console = {
+  stderr: string;
+  stdout: string;
+};
 export type Fixture = {
   vars?: Vars;
   inputs: {
@@ -12,8 +16,14 @@ export type Fixture = {
     files: Array<VirtualFile>;
   };
   outputs: {
-    actual?: Array<VirtualFile>;
-    expected: Array<VirtualFile>;
+    files: {
+      actual?: Array<VirtualFile>;
+      expected: Array<VirtualFile>;
+    };
+    console: {
+      actual?: Console;
+      expected: Console;
+    };
   };
 };
 export type Test = {

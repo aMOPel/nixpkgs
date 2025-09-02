@@ -139,15 +139,23 @@ async function runFixture(f: Fixture) {
 
   const command = argsToCommand(f.inputs.args);
   const { code, stdout, stderr } = await command.output();
-  assertEq(code, 0, dec.decode(stderr));
-  console.log(dec.decode(stdout));
+  f.outputs.console.actual = {
+    stderr: dec.decode(stderr),
+    stdout: dec.decode(stdout),
+  };
 
-  f.outputs.actual = await Promise.all(
-    f.outputs.expected.map(async (f) => await fsToVirtualFile(f.path)),
+  console.log(f.outputs.console.actual!.stderr);
+  console.log(f.outputs.console.actual!.stdout);
+  assertEq(f.outputs.console.actual.stderr, f.outputs.console.expected.stderr);
+  assertEq(f.outputs.console.actual.stdout, f.outputs.console.expected.stdout);
+  assertEq(code, 0);
+
+  f.outputs.files.actual = await Promise.all(
+    f.outputs.files.expected.map(async (f) => await fsToVirtualFile(f.path)),
   );
 
-  await Promise.all(f.outputs.expected.map(async (expected, i) => {
-    const actual = f.outputs.actual![i];
+  await Promise.all(f.outputs.files.expected.map(async (expected, i) => {
+    const actual = f.outputs.files.actual![i];
     await fancyDiff(actual, expected);
   }));
 }

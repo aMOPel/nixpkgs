@@ -6,6 +6,8 @@ type LockfileTransformerFixture = {
   outJsrJsonContent: string;
   outNpmJsonContent: string;
   outHttpsJsonContent: string;
+  outStdout?: string;
+  outStderr?: string;
 };
 
 function fixtureFrom(f: LockfileTransformerFixture): Fixture {
@@ -39,23 +41,31 @@ function fixtureFrom(f: LockfileTransformerFixture): Fixture {
       }],
     },
     outputs: {
-      expected: [
-        {
-          path: vars["out-path-npm"],
-          isReal: false,
-          content: JSON.stringify(JSON.parse(f.outNpmJsonContent), null, 2),
+      files: {
+        expected: [
+          {
+            path: vars["out-path-npm"],
+            isReal: false,
+            content: JSON.stringify(JSON.parse(f.outNpmJsonContent), null, 2),
+          },
+          {
+            path: vars["out-path-https"],
+            isReal: false,
+            content: JSON.stringify(JSON.parse(f.outHttpsJsonContent), null, 2),
+          },
+          {
+            path: vars["out-path-jsr"],
+            isReal: false,
+            content: JSON.stringify(JSON.parse(f.outJsrJsonContent), null, 2),
+          },
+        ],
+      },
+      console: {
+        expected: {
+          stderr: f.outStderr || "",
+          stdout: f.outStdout || "",
         },
-        {
-          path: vars["out-path-https"],
-          isReal: false,
-          content: JSON.stringify(JSON.parse(f.outHttpsJsonContent), null, 2),
-        },
-        {
-          path: vars["out-path-jsr"],
-          isReal: false,
-          content: JSON.stringify(JSON.parse(f.outJsrJsonContent), null, 2),
-        },
-      ],
+      },
     },
   };
 }
@@ -72,7 +82,42 @@ const lockfileTransformerTests: Array<Test> = [
       outNpmJsonContent: `[]`,
       outHttpsJsonContent: `[]`,
     }),
-  },{
+  },
+  {
+    name: "unused-keys",
+    fixture: fixtureFrom({
+      inLockJsonContent: `
+{
+  "version": "5",
+  "other-keys-are-unused": "doesn't matter",
+  "also-unused": "doesn't matter"
+}`,
+      outJsrJsonContent: `[]`,
+      outNpmJsonContent: `[]`,
+      outHttpsJsonContent: `[]`,
+    }),
+  },
+  {
+    name: "check-lock-version",
+    fixture: fixtureFrom({
+      inLockJsonContent: `
+{
+  "version": "unknown"
+}`,
+      outJsrJsonContent: `[]`,
+      outNpmJsonContent: `[]`,
+      outHttpsJsonContent: `[]`,
+      outStderr: `
+      WARNING: using deno.lock with a version unknown by nixpkgs buildDenoPackage: "unknown"
+
+      The build might fail because of this.
+
+      Consider creating an issue in nixpkgs, if it there is not already one for that version.
+
+`,
+    }),
+  },
+  {
     name: "just-jsr",
     fixture: fixtureFrom({
       inLockJsonContent: `
