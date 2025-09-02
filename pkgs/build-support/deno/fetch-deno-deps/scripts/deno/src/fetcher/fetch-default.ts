@@ -35,14 +35,11 @@ export async function fetchDefault(
   if (!response.ok) {
     throw `fetch to ${p.url} failed`;
   }
-  let headers: Record<string, string> | undefined = undefined;
+  const headers: Record<string, string> = {};
 
   for (const [key, value] of response.headers.entries()) {
     const keyLower = key.toLowerCase();
     if (keepHeaders.includes(keyLower)) {
-      if (headers === undefined) {
-        headers = {};
-      }
       headers[keyLower] = value;
     }
   }
