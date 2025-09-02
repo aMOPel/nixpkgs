@@ -15,132 +15,8 @@
 // we avoid having large amounts of test files commit to git
 //
 // we can create multiple test cases
-type Args = Array<string>;
-type Vars = Record<string, string>;
-type VirtualFile = {
-  path: string;
-  content: string;
-  isReal: boolean;
-};
-type Fixture = {
-  vars?: Vars;
-  inputs: {
-    args: Args;
-    files: Array<VirtualFile>;
-  };
-  outputs: {
-    actual?: Array<VirtualFile>;
-    expected: Array<VirtualFile>;
-    prepFn: (...args: any[]) => any;
-  };
-};
-const lockfileTransformerFixtures: Array<Fixture> = [
-  (() => {
-    const vars: Vars = {
-      "in-path": "./first-deno.lock",
-      "out-path-jsr": "./jsr.json",
-      "out-path-npm": "./npm.json",
-      "out-path-https": "./https.json",
-    };
-    return {
-      vars,
-      inputs: {
-        args: [
-          "deno",
-          "run",
-          "--allow-all",
-          "./src/lockfile-transformer/lockfile-transformer.ts",
-          "--in-path",
-          vars["in-path"],
-          "--out-path-jsr",
-          vars["out-path-jsr"],
-          "--out-path-npm",
-          vars["out-path-npm"],
-          "--out-path-https",
-          vars["out-path-https"],
-        ],
-        files: [
-          {
-            path: vars["in-path"],
-            isReal: false,
-            content: `
-{
-  "version": "5",
-  "specifiers": {
-    "jsr:@luca/cases@1.0.0": "1.0.0",
-    "jsr:@std/cli@1.0.17": "1.0.17"
-  },
-  "jsr": {
-    "@luca/cases@1.0.0": {
-      "integrity": "b5f9471f1830595e63a2b7d62821ac822a19e16899e6584799be63f17a1fbc30"
-    },
-    "@std/cli@1.0.17": {
-      "integrity": "e15b9abe629e17be90cc6216327f03a29eae613365f1353837fa749aad29ce7b"
-    }
-  },
-  "workspace": {
-    "dependencies": [
-      "jsr:@luca/cases@1.0.0",
-      "jsr:@std/cli@1.0.17"
-    ]
-  }
-}
-            `,
-          },
-        ],
-      },
-      outputs: {
-        expected: [
-          {
-            path: vars["out-path-jsr"],
-            isReal: false,
-            content: JSON.stringify(
-              JSON.parse(`
-[
-  {
-    "url": "https://jsr.io/@luca/cases/1.0.0_meta.json",
-    "hash": "b5f9471f1830595e63a2b7d62821ac822a19e16899e6584799be63f17a1fbc30",
-    "hashAlgo": "sha256",
-    "meta": {
-      "registry": "jsr",
-      "packageSpecifier": {
-        "fullString": "@luca/cases@1.0.0",
-        "registry": "jsr",
-        "scope": "luc",
-        "name": "cases",
-        "version": "1.0.0",
-        "suffix": null
-      }
-    }
-  },
-  {
-    "url": "https://jsr.io/@std/cli/1.0.17_meta.json",
-    "hash": "e15b9abe629e17be90cc6216327f03a29eae613365f1353837fa749aad29ce7b",
-    "hashAlgo": "sha256",
-    "meta": {
-      "registry": "jsr",
-      "packageSpecifier": {
-        "fullString": "@std/cli@1.0.17",
-        "registry": "jsr",
-        "scope": "std",
-        "name": "cli",
-        "version": "1.0.17",
-        "suffix": null
-      }
-    }
-  }
-]
-            `),
-              null,
-              2,
-            ),
-          },
-        ],
-        prepFn: JSON.parse,
-      },
-    };
-  })(),
-];
+
+import { Args, Fixture, Test, VirtualFile } from "./types.d.ts";
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -199,40 +75,40 @@ async function argsToPipe(
   };
 }
 
-function deepEquals(a: any, b: any, visited = new WeakMap()): boolean {
-  // Handle identical values (including NaN)
-  if (Object.is(a, b)) return true;
-
-  // Handle null or primitive types
-  if (
-    typeof a !== "object" || a === null || typeof b !== "object" || b === null
-  ) {
-    return false;
-  }
-
-  // Prevent infinite recursion on circular refs
-  if (visited.has(a)) {
-    return visited.get(a) === b;
-  }
-  visited.set(a, b);
-
-  // Handle Arrays
-  if (Array.isArray(a)) {
-    if (!Array.isArray(b) || a.length !== b.length) return false;
-    return a.every((val, i) => deepEquals(val, b[i], visited));
-  }
-
-  // Handle general objects
-  const keysA = Object.keys(a);
-  const keysB = Object.keys(b);
-  if (keysA.length !== keysB.length) return false;
-  for (const key of keysA) {
-    if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
-    if (!deepEquals(a[key], b[key], visited)) return false;
-  }
-
-  return true;
-}
+// function deepEquals(a: any, b: any, visited = new WeakMap()): boolean {
+//   // Handle identical values (including NaN)
+//   if (Object.is(a, b)) return true;
+//
+//   // Handle null or primitive types
+//   if (
+//     typeof a !== "object" || a === null || typeof b !== "object" || b === null
+//   ) {
+//     return false;
+//   }
+//
+//   // Prevent infinite recursion on circular refs
+//   if (visited.has(a)) {
+//     return visited.get(a) === b;
+//   }
+//   visited.set(a, b);
+//
+//   // Handle Arrays
+//   if (Array.isArray(a)) {
+//     if (!Array.isArray(b) || a.length !== b.length) return false;
+//     return a.every((val, i) => deepEquals(val, b[i], visited));
+//   }
+//
+//   // Handle general objects
+//   const keysA = Object.keys(a);
+//   const keysB = Object.keys(b);
+//   if (keysA.length !== keysB.length) return false;
+//   for (const key of keysA) {
+//     if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
+//     if (!deepEquals(a[key], b[key], visited)) return false;
+//   }
+//
+//   return true;
+// }
 
 async function fancyDiff(f1: VirtualFile, f2: VirtualFile) {
   if (f1.path === f2.path) {
@@ -251,13 +127,14 @@ async function fancyDiff(f1: VirtualFile, f2: VirtualFile) {
 }
 
 function assertEq(a: any, b: any, msg?: string) {
-  if (!deepEquals(a, b)) {
+  // if (!deepEquals(a, b)) {
+  if (a !== b) {
     const _msg = `Assertion failed: "${a}" === "${b}"\r\n`;
     throw new Error(_msg + msg);
   }
 }
 
-async function test(f: Fixture) {
+async function runFixture(f: Fixture) {
   await Promise.all(f.inputs.files.map(virtualFileToFs));
 
   const command = argsToCommand(f.inputs.args);
@@ -272,17 +149,17 @@ async function test(f: Fixture) {
   await Promise.all(f.outputs.expected.map(async (expected, i) => {
     const actual = f.outputs.actual![i];
     await fancyDiff(actual, expected);
-    // assertEq(
-    //   f.outputs.prepFn(actual.content),
-    //   f.outputs.prepFn(expected.content),
-    // );
   }));
 }
 
-Deno.test({
-  name: "first",
-  fn: async () => await test(lockfileTransformerFixtures[0]),
-});
+export function runTests(fixtures: Test[]) {
+  fixtures.forEach((test) => {
+    Deno.test({
+      name: test.name,
+      fn: async () => await runFixture(test.fixture),
+    });
+  });
+}
 
 // export async function startMockServer(
 //   dir: string,
