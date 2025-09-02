@@ -3,9 +3,10 @@ let
 
 in
 pkgs.mkShell {
-  buildInputs = [
-    pkgs.deno
-    pkgs.rustup
+  buildInputs = with pkgs; [
+    deno
+    rustup
+    diff-so-fancy
   ];
 
   DENO_DIR = "./.deno";
