@@ -201,8 +201,23 @@ async function writeAll(
   await Promise.all(promises);
 }
 
+const knownVersions = ["4", "5"];
+
+function checkVersion(lockfile: DenoLock) {
+  if (!knownVersions.includes(lockfile.version)) {
+    console.error(`
+      WARNING: using deno.lock with a version unknown by nixpkgs buildDenoPackage: "${lockfile.version}"
+
+      The build might fail because of this.
+
+      Consider creating an issue in nixpkgs, if it there is not already one for that version.
+`);
+  }
+}
+
 async function main() {
   const config = getConfig();
+  checkVersion(config.lockfile);
   const transformedLocks = transformAll(config.lockfile);
   await writeAll(
     config.outPathJsr,
