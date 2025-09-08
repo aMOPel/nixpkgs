@@ -1,21 +1,3 @@
-// TODO: use Deno.serve to create mock server that serves a virtual filesystem or real filesystem
-// make e2e tests that run a script, pass args, setup filefs before and expect certain filefs after
-// wrap e2e tests in nix build, but make them executable outside nix-build too
-//
-// or use sws https://static-web-server.net/ to serve fs
-// maybe have a integration-test.ts file that has a mapping of filename to file content,
-// write those to disk before the test, start sws with root where the files were written.
-//
-// use something to compare expected output to real output, maybe a fancy diff cli
-//
-// expected output can be in a mapping of filename to file content, too and written to disk before the test
-//
-// like this we stay tech agnostic and only test the top level contract of a cli
-//
-// we avoid having large amounts of test files commit to git
-//
-// we can create multiple test cases
-
 import { Args, Fixture, Test, VirtualFile } from "./types.d.ts";
 
 export const enc = new TextEncoder();
@@ -217,47 +199,3 @@ export function runTests(
     });
   });
 }
-
-// export async function startMockServer(
-//   dir: string,
-//   port = 8080,
-// ): Promise<{ stop: () => void; url: string }> {
-//   const controller = new AbortController();
-//
-//   const server = Deno.serve(
-//     {
-//       hostname: "127.0.0.1",
-//       port,
-//       signal: controller.signal,
-//     },
-//     async (req: Request): Promise<Response> => {
-//       try {
-//         const url = new URL(req.url);
-//         const path = decodeURIComponent(url.pathname.slice(1)); // remove leading '/'
-//         const filePath = `${dir}/${path}`;
-//
-//         const file = await Deno.open(filePath, { read: true });
-//         const stat = await file.stat();
-//         const headers = new Headers();
-//         headers.set("content-length", stat.size.toString());
-//         headers.set("content-type", detectContentType(filePath));
-//         return new Response(file.readable, { status: 200, headers });
-//       } catch {
-//         return new Response("Not Found", { status: 404 });
-//       }
-//     }
-//   );
-//
-//   return {
-//     stop: () => controller.abort(),
-//     url: `http://127.0.0.1:${port}`,
-//   };
-// }
-//
-// function detectContentType(path: string): string {
-//   if (path.endsWith(".txt")) return "text/plain";
-//   if (path.endsWith(".json")) return "application/json";
-//   if (path.endsWith(".html")) return "text/html";
-//   if (path.endsWith(".zip")) return "application/zip";
-//   return "application/octet-stream";
-// }
