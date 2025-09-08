@@ -8,14 +8,15 @@ import {
 } from "../utils.ts";
 
 function makeJsrPackageFileUrl(
+  inJsrRegistryUrl: string,
   packageSpecifier: PackageSpecifier,
   filePath: string,
 ): string {
-  return `https://jsr.io/${getScopedName(packageSpecifier)}/${packageSpecifier.version}${filePath}`;
+  return `${inJsrRegistryUrl}/${getScopedName(packageSpecifier)}/${packageSpecifier.version}${filePath}`;
 }
 
-function makeMetaJsonUrl(packageSpecifier: PackageSpecifier): string {
-  return `https://jsr.io/${getScopedName(packageSpecifier)}/meta.json`;
+function makeMetaJsonUrl(inJsrRegistryUrl: string, packageSpecifier: PackageSpecifier): string {
+  return `${inJsrRegistryUrl}/${getScopedName(packageSpecifier)}/meta.json`;
 }
 
 async function fetchVersionMetaJson(
@@ -112,6 +113,7 @@ async function getFilesAndHashesUsingModuleGraph(
 
 async function fetchJsrPackageFiles(
   outPathPrefix: PathString,
+  inJsrRegistryUrl: string,
   versionMetaJson: PackageFileOut,
   packageSpecifier: PackageSpecifier,
 ): Promise<Array<PackageFileOut>> {
@@ -123,7 +125,7 @@ async function fetchJsrPackageFiles(
   );
   for (const [filePath, hash] of Object.entries(files)) {
     const packageFile: PackageFileIn = {
-      url: makeJsrPackageFileUrl(packageSpecifier, filePath),
+      url: makeJsrPackageFileUrl(inJsrRegistryUrl, packageSpecifier, filePath),
       hash,
       hashAlgo: "sha256",
       meta: { packageSpecifier },
@@ -136,6 +138,7 @@ async function fetchJsrPackageFiles(
 
 export async function fetchJsr(
   outPathPrefix: PathString,
+  inJsrRegistryUrl: string,
   versionMetaJson: PackageFileIn,
   packageSpecifier: PackageSpecifier,
 ): Promise<CommonLockFormatOut> {
@@ -143,7 +146,7 @@ export async function fetchJsr(
   result[0] = await fetchVersionMetaJson(outPathPrefix, versionMetaJson);
 
   result = result.concat(
-    await fetchJsrPackageFiles(outPathPrefix, result[0], packageSpecifier),
+    await fetchJsrPackageFiles(outPathPrefix, inJsrRegistryUrl, result[0], packageSpecifier),
   );
   return result;
 }
@@ -154,11 +157,12 @@ type MetaJsonsData = Record<
   { content: MetaJson; packageFile: PackageFileOut }
 >;
 async function makeMetaJson(
+  inJsrRegistryUrl: string,
   versionMetaJson: PackageFileIn,
   packageSpecifier: PackageSpecifier,
   metaJsons: MetaJsonsData,
 ): Promise<MetaJsonsData> {
-  const metaJsonUrl = makeMetaJsonUrl(packageSpecifier);
+  const metaJsonUrl = makeMetaJsonUrl(inJsrRegistryUrl, packageSpecifier);
 
   const packageFile: PackageFileOut = {
     url: metaJsonUrl,
@@ -210,6 +214,7 @@ async function writeMetaJson(outPathPrefix: PathString, metaJsonData: MetaJsonDa
 export async function fetchAllJsr(
   outPathPrefix: PathString,
   commonLockfileJsr: CommonLockFormatIn,
+  inJsrRegistryUrl: string,
 ): Promise<CommonLockFormatOut> {
   let result: CommonLockFormatOut = [];
   const resultUnresolved: Array<Promise<CommonLockFormatOut>> = [];
@@ -221,9 +226,10 @@ export async function fetchAllJsr(
       throw `packageSpecifier required but not found in ${JSON.stringify(versionMetaJson)}`;
     }
 
-    resultUnresolved.push(fetchJsr(outPathPrefix, versionMetaJson, packageSpecifier));
+    resultUnresolved.push(fetchJsr(outPathPrefix, inJsrRegistryUrl, versionMetaJson, packageSpecifier));
 
     metaJsons = await makeMetaJson(
+      inJsrRegistryUrl,
       versionMetaJson,
       packageSpecifier,
       metaJsons,

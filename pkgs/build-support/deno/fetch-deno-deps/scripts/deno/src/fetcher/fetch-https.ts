@@ -1,16 +1,16 @@
 import { fetchDefault } from "./fetch-default.ts";
 
-type Config = SingleFodFetcherConfig;
 export async function fetchAllHttps(
-  config: Config,
+  outPathPrefix: PathString,
+  commonLockfileHttps: CommonLockFormatIn,
 ): Promise<CommonLockFormatOut> {
   let result: CommonLockFormatOut = [];
-  const resultUnresolved = config.commonLockfileHttps.map((p)=>fetchDefault(config, p))
+  const resultUnresolved = commonLockfileHttps.map((p)=>fetchDefault(outPathPrefix, p))
 
   await Promise.all(resultUnresolved).then((packageFiles) => {
     const fixedUrlPackageFiles = packageFiles.map((p) => {
-      if (p?.meta?.original) {
-        p.url = p.meta.original.url;
+      if (p?.meta?.original_url) {
+        p.url = p.meta.original_url;
       }
       return p;
     });

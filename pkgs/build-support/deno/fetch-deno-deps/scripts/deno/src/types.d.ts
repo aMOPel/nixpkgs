@@ -19,6 +19,7 @@ type SingleFodFetcherConfig = {
   inPathJsr: PathString;
   inPathNpm: PathString;
   inPathHttps: PathString;
+  inJsrRegistryUrl: string;
   outPathVendored: PathString;
   outPathNpm: PathString;
   commonLockfileJsr: CommonLockFormatIn;

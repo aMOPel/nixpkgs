@@ -13,6 +13,7 @@ function getConfig(): Config {
     "in-path-jsr": "",
     "in-path-npm": "",
     "in-path-https": "",
+    "in-jsr-registry-url": "https://jsr.io",
     "out-path-vendored": "",
     "out-path-npm": "",
     "out-path-prefix": "",
@@ -47,6 +48,7 @@ function getConfig(): Config {
     inPathJsr: flagsParsed["in-path-jsr"],
     inPathNpm: flagsParsed["in-path-npm"],
     inPathHttps: flagsParsed["in-path-https"],
+    inJsrRegistryUrl: flagsParsed["in-jsr-registry-url"],
     outPathPrefix: flagsParsed["out-path-prefix"] || "",
   };
 }
@@ -54,9 +56,9 @@ function getConfig(): Config {
 type Lockfiles = { vendor: CommonLockFormatOut; npm: CommonLockFormatOut };
 async function fetchAll(config: Config): Promise<Lockfiles> {
   const lockfilesByRegistry = {
-    jsr: await fetchAllJsr(config.outPathPrefix, config.commonLockfileJsr),
-    https: await fetchAllHttps(config),
-    npm: await fetchAllNpm(config),
+    jsr: await fetchAllJsr(config.outPathPrefix, config.commonLockfileJsr, config.inJsrRegistryUrl),
+    https: await fetchAllHttps(config.outPathPrefix, config.commonLockfileHttps),
+    npm: await fetchAllNpm(config.outPathPrefix, config.commonLockfileNpm),
   };
 
   const lockfilesByCache = {

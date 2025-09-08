@@ -1,6 +1,5 @@
 import { fetchDefault, makeOutPath } from "./fetch-default.ts";
 import { addPrefix, getScopedName } from "../utils.ts";
-type Config = SingleFodFetcherConfig;
 
 function makeRegistryJsonUrl(packageSpecifier: PackageSpecifier): string {
   // not a real url, needs to be unique per scope+name, but not unique per version
@@ -29,11 +28,11 @@ function makeRegistryJsonContent(
 }
 
 export async function fetchNpm(
-  config: Config,
+  outPathPrefix: PathString,
   packageFile: PackageFileIn,
 ): Promise<Array<PackageFileOut>> {
   const result: Array<PackageFileOut> = [];
-  result[0] = await fetchDefault(config, packageFile);
+  result[0] = await fetchDefault(outPathPrefix, packageFile);
   return result;
 }
 
@@ -90,12 +89,12 @@ async function makeRegistryJson(
 }
 
 async function writeRegistryJson(
-  config: Config,
+  outPathPrefix: PathString,
   registryJsonData: RegistryJsonData,
 ) {
   const path = addPrefix(
     registryJsonData.packageFile.outPath,
-    config.outPathPrefix,
+    outPathPrefix,
   );
 
   const data = new TextEncoder().encode(
@@ -105,26 +104,27 @@ async function writeRegistryJson(
 }
 
 export async function fetchAllNpm(
-  config: Config,
+  outPathPrefix: PathString,
+  commonLockfileNpm: CommonLockFormatIn,
 ): Promise<CommonLockFormatOut> {
   let result: CommonLockFormatOut = [];
   const resultUnresolved: Array<Promise<CommonLockFormatOut>> = [];
   let registryJsons: RegistryJsonsData = {};
 
-  for (const p of config.commonLockfileNpm) {
+  for (const p of commonLockfileNpm) {
     const packageSpecifier = p?.meta?.packageSpecifier;
     if (!packageSpecifier) {
       throw `packageSpecifier required but not found in ${JSON.stringify(p)}`;
     }
 
-    resultUnresolved.push(fetchNpm(config, p));
+    resultUnresolved.push(fetchNpm(outPathPrefix, p));
 
     registryJsons = await makeRegistryJson(p, packageSpecifier, registryJsons);
   }
 
   for (const registryJson of Object.values(registryJsons)) {
     resultUnresolved.push(Promise.resolve([registryJson.packageFile]));
-    await writeRegistryJson(config, registryJson);
+    await writeRegistryJson(outPathPrefix, registryJson);
   }
 
   await Promise.all(resultUnresolved).then((packageFiles) => {
