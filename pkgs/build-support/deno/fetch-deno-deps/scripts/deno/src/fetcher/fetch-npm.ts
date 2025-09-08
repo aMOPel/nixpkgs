@@ -59,6 +59,10 @@ async function makeRegistryJson(
 
   const key = getScopedName(packageSpecifier);
   const content = makeRegistryJsonContent(packageSpecifier);
+  // we need custom merging logic here, since there can be collisions
+  // with package specifiers, when packages have the same name, but different versions.
+  // that is why we are passing registryJsons to this function, so this function
+  // has control over the merging details
   if (Object.hasOwn(registryJsons, key)) {
     if (
       Object.hasOwn(

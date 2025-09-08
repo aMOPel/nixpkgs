@@ -74,6 +74,8 @@ async function getFilesAndHashesUsingModuleGraph(
           if (typeof dependency.argument === "string") {
             specifier = dependency.argument || "";
           } else {
+            // dynamic imports can also be arrays (when multiple arguments were given
+            // to the import function. we just keep the first argument
             if (!dependency.argument) {
               specifier = ""
               return
@@ -94,6 +96,8 @@ async function getFilesAndHashesUsingModuleGraph(
         default:
           throw `unsupported moduleGraph format in ${JSON.stringify(versionMetaJson)}:\n\n${moduleGraph}`;
       }
+      // dynamic imports can also be full package specifiers, like "npm:package@version"
+      // we skip those here
       if (!isPath(specifier)) {
         return;
       }
@@ -175,6 +179,10 @@ async function makeMetaJson(
 
   const key = getScopedName(packageSpecifier);
   const content = makeMetaJsonContent(packageSpecifier);
+  // we need custom merging logic here, since there can be collisions
+  // with package specifiers, when packages have the same name, but different versions.
+  // that is why we are passing metaJsons to this function, so this function
+  // has control over the merging details
   if (Object.hasOwn(metaJsons, key)) {
     if (
       Object.hasOwn(metaJsons[key].packageFile.meta, "otherPackageSpecifiers")

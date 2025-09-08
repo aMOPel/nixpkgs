@@ -9,6 +9,9 @@ export async function fetchAllHttps(
 
   await Promise.all(resultUnresolved).then((packageFiles) => {
     const fixedUrlPackageFiles = packageFiles.map((p) => {
+      // special case for esm.sh packages,
+      // to fetch the files, we need to use the modified url with the `?target=denonext` query param
+      // however for deno do later resolve the packages properly, we need the original url
       if (p?.meta?.original_url) {
         p.url = p.meta.original_url;
       }
