@@ -31,15 +31,16 @@ function getConfig(): Config {
     }
   });
 
+  const dec = new TextDecoder()
   return {
     commonLockfileJsr: JSON.parse(
-      new TextDecoder().decode(Deno.readFileSync(flagsParsed["in-path-jsr"])),
+      dec.decode(Deno.readFileSync(flagsParsed["in-path-jsr"])),
     ),
     commonLockfileNpm: JSON.parse(
-      new TextDecoder().decode(Deno.readFileSync(flagsParsed["in-path-npm"])),
+      dec.decode(Deno.readFileSync(flagsParsed["in-path-npm"])),
     ),
     commonLockfileHttps: JSON.parse(
-      new TextDecoder().decode(Deno.readFileSync(flagsParsed["in-path-https"])),
+      dec.decode(Deno.readFileSync(flagsParsed["in-path-https"])),
     ),
     outPathVendored: flagsParsed["out-path-vendored"],
     outPathNpm: flagsParsed["out-path-npm"],
