@@ -7,6 +7,7 @@ pkgs.mkShell {
     deno
     rustup
     diff-so-fancy
+    static-web-server
   ];
 
   DENO_DIR = "./.deno";

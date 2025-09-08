@@ -6,8 +6,9 @@ export type VirtualFile = {
   isReal: boolean;
 };
 export type Console = {
-  stderr: string;
-  stdout: string;
+  stderr?: string;
+  stdout?: string;
+  code?: number,
 };
 export type Fixture = {
   inputs: {
