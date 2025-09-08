@@ -203,7 +203,7 @@ async function writeMetaJson(outPathPrefix: PathString, metaJsonData: MetaJsonDa
     outPathPrefix,
   );
 
-  const data = new TextEncoder().encode(JSON.stringify(metaJsonData.content));
+  const data = new TextEncoder().encode(JSON.stringify(metaJsonData.content, null, 2));
   await Deno.writeFile(path, data, { create: true });
 }
 

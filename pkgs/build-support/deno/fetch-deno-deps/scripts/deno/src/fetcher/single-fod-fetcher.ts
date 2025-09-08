@@ -73,12 +73,12 @@ async function fetchAndWrite(config: Config) {
   const promises = [
     Deno.writeTextFile(
       addPrefix(config.outPathVendored, config.outPathPrefix),
-      JSON.stringify(lockfiles.vendor),
+      JSON.stringify(lockfiles.vendor, null, 2),
       { create: true },
     ),
     Deno.writeTextFile(
       addPrefix(config.outPathNpm, config.outPathPrefix),
-      JSON.stringify(lockfiles.npm),
+      JSON.stringify(lockfiles.npm, null, 2),
       { create: true },
     ),
   ];

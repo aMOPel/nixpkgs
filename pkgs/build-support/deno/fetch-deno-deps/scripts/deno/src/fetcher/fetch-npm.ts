@@ -99,7 +99,7 @@ async function writeRegistryJson(
   );
 
   const data = new TextEncoder().encode(
-    JSON.stringify(registryJsonData.content),
+    JSON.stringify(registryJsonData.content, null, 2),
   );
   await Deno.writeFile(path, data, { create: true });
 }
