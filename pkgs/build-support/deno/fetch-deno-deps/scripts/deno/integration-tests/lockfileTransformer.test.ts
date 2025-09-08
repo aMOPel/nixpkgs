@@ -18,7 +18,6 @@ function fixtureFrom(f: LockfileTransformerFixture): Fixture {
     "out-path-https": "./https.json",
   };
   return {
-    vars,
     inputs: {
       args: [
         "deno",

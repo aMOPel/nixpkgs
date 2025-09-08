@@ -10,7 +10,6 @@ export type Console = {
   stdout: string;
 };
 export type Fixture = {
-  vars?: Vars;
   inputs: {
     args: Args;
     files: Array<VirtualFile>;
