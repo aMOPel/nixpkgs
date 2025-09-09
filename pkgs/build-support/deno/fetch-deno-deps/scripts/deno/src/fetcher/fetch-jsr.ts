@@ -60,7 +60,7 @@ async function getFilesAndHashesUsingModuleGraph(
   }
 
   const importers = Object.keys(moduleGraph);
-  const exporters = Object.values(exports).map((v) => v.replace(/^\.\//, "/"));
+  const exported = Object.values(exports).map((v) => v.replace(/^\.\//, "/"));
   const imported: Array<string> = [];
   Object.entries(moduleGraph).forEach(([importedFilePath, value]) => {
     const basePath = getBasePath(importedFilePath);
@@ -104,7 +104,7 @@ async function getFilesAndHashesUsingModuleGraph(
       imported.push(normalizeUnixPath(`${basePath}/${specifier}`));
     });
   });
-  const all = importers.concat(exporters).concat(imported);
+  const all = importers.concat(exported).concat(imported);
 
   const set = new Set(all);
   const result: Record<string, string> = {};
