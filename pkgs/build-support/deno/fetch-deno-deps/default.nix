@@ -3,10 +3,9 @@
   stdenvNoCC,
   lib,
   cacert,
+  fetch-deno-deps-scripts,
 }:
 let
-  inherit (callPackage ./scripts/deno/default.nix { }) fetch-deno-deps-scripts;
-
   transformDenoLock =
     {
       denoLock,

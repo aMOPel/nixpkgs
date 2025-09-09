@@ -3607,6 +3607,8 @@ with pkgs;
 
   inherit (callPackages ../build-support/deno/fetch-deno-deps { }) fetchDenoDeps;
 
+  inherit (callPackages ../build-support/deno/fetch-deno-deps/scripts/deno/default.nix { }) fetch-deno-deps-scripts;
+
   ktailctl = kdePackages.callPackage ../applications/networking/ktailctl { };
 
   ldapdomaindump = with python3Packages; toPythonApplication ldapdomaindump;
