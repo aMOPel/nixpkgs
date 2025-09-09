@@ -101,6 +101,11 @@ function replacePlaceholder(
 }
 
 function _fixtureFrom(f: FetcherFixture, serverConfig: ServerConfig): Fixture {
+  const bin = Deno.args[0]
+  if (!bin) {
+    throw new Error("test expects cli args[0]: binary to execute")
+  }
+
   const actualDomain = `http://${serverConfig.host}:${serverConfig.port}`;
 
   const vars: Vars = {
@@ -128,10 +133,7 @@ function _fixtureFrom(f: FetcherFixture, serverConfig: ServerConfig): Fixture {
   return {
     inputs: {
       args: [
-        "deno",
-        "run",
-        "--allow-all",
-        "./src/fetcher/single-fod-fetcher.ts",
+        bin,
         "--in-path-jsr",
         vars["in-path-jsr"],
         "--in-path-npm",

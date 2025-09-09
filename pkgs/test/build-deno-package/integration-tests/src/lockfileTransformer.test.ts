@@ -11,19 +11,22 @@ type LockfileTransformerFixture = {
 };
 
 function fixtureFrom(f: LockfileTransformerFixture): Fixture {
+  const bin = Deno.args[0]
+  if (!bin) {
+    throw new Error("test expects cli args[0]: binary to execute")
+  }
+
   const vars: Vars = {
     "in-path": "./first-deno.lock",
     "out-path-jsr": "./jsr.json",
     "out-path-npm": "./npm.json",
     "out-path-https": "./https.json",
   };
+
   return {
     inputs: {
       args: [
-        "deno",
-        "run",
-        "--allow-all",
-        "./src/lockfile-transformer/lockfile-transformer.ts",
+        bin,
         "--in-path",
         vars["in-path"],
         "--out-path-jsr",
