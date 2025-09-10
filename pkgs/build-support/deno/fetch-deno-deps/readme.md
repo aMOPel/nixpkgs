@@ -1,33 +1,13 @@
 # Deno Custom Fetcher
 
-## "import from lock file" feature
-
-It's currently not feasible to have an "import from lock file" functionality.
-
-There are several technical problems, that make it currently impossible to build the
-dependencies without a hash provided in nix:
-
-1. Files from `x-typescript-types` headers are not listed in the lock file.
-1. The necessity in nixpkgs to split the "fetch FOD" from the "file transformation step", makes it impossible,
-   since we need to record the headers in a separate FOD and then transform the files in the another derivation using that information.
-   Since there is no information in the lock file about the headers, we have to copy the headers information to `$out` of the FOD,
-   which changes the hash, so we can't use the hashes from the lock file for all the fetches where we need to record the headers.
-1. JSR's API architecture requires us to create a FOD per file of a dependency (not per package, like NPM).
-   This provides great granular caching, but terrible performance when fetching, since the disc IO
-   quickly gets out of hand, with big JSR packages with hundreds of files.
-
-On top of that, this feature would require a complete reimplementation of all the fetching logic in Nix,
-which is a lot of effort, due to its complexity.
-And the maintenance effort would double, which is not desirable, since Deno's dependency cache API is still unstable.
-
 ## Formats
 
-This section documents what formats the
-Deno CLI uses for its dependency directories at the time of writing.
+This section documents what formats the Deno CLI uses for its dependency
+cache at the time of writing.
 
-Since many of the formats are considered an implementation detail
-by the Deno maintainers, they are subject to change and compatibility
-to the Deno CLI can break any time.
+Since many of the formats are considered an implementation detail by the Deno
+maintainers, they are subject to change and compatibility to the Deno CLI can
+break any time.
 
 Within a year, a couple of upstream changes can be expected.
 
@@ -45,6 +25,8 @@ typescript 5.8.3
 ### `deno.lock`
 
 `deno.lock` version 5
+
+**Format**:
 
 ```json
 {
@@ -113,12 +95,14 @@ The packages listed in `remote` are called
 
 A JSR package is fetched from the [JavaScript registry](https://jsr.io/).
 
-The basic structure of their API is outlined [here](https://jsr.io/docs/api#jsr-registry-api).
-There are multiple steps to fetch a package from the JSR.
+The basic structure of their API is outlined
+[here](https://jsr.io/docs/api#jsr-registry-api).
+Multiple steps are necessary, to fetch a package from the JSR.
 
 1. Fetch the `meta.json` file and look at available versions of a package.
-2. Pick a version and fetch the `<version>_meta.json` file and look at the module graph of files, that the package contains.
-3. Fetch the relevant files.
+2. Pick a version and fetch the `<version>_meta.json` file and analyse at the
+   module graph of files, that the package contains.
+3. Fetch the relevant files individually.
 
 #### `meta.json`
 
@@ -139,14 +123,22 @@ There are multiple steps to fetch a package from the JSR.
 }
 ```
 
-These files are mutable and change as new versions appear.
-Therefore, we should not fetch them in a FOD.
+**Implementation Notes**:
+
+These files are mutable and change as new versions appear. Therefore, we should
+not add them to the output of an FOD.
 
 The Deno CLI requires these files, however, so we need to construct them from
 the information we get from the lock file.
 
-Since the same package can occur multiple times in the lock-file, with different versions,
-we have make sure, that for each version, there is an entry in `.versions`.
+Since we are not fetching the files, but constructing them, we don't need an
+integrity hash for them.
+
+Another thing to consider is, that the same package can occur multiple times in
+the lock-file with different versions. So we have to make sure, that for each
+version, there is an entry in `.versions`.
+
+This requires us to have some logic, which collects the versions of a package.
 
 #### `<version>_meta.json`
 
@@ -276,60 +268,71 @@ but the module graph can also look like this:
 
 </details>
 
+**Implementation Notes**:
+
 These files are immutable. JSR promises they will never change.
 
-The integrity hashes in the lock file are made from the `<version>_meta.json`
-files, so we can use them to construct FODs containing the `<version>_meta.json` files.
+The integrity hashes for JSR packages in the lock-file, are sha256 hashes over
+the contents of the `<version>_meta.json` files.
 
-From there we can parse the module graph and construct a list of the files we need.
+The Deno CLI also expects to find the `<version>_meta.json` files, so we need to
+keep them.
+
+To get the actual package files we need to parse the module graph and extract a
+list of the files.
 
 #### The actual package files
 
 **URL**: `https://jsr.io/@<scope>/<package-name>/<version>/<file_path>`
 
-Since the files in `.manifest` associate paths and integrity hashes,
-we can construct a list of `(url, hash)` pairs, from which we can construct FODs.
+**Implementation Notes**:
 
-To reduce the amount of fetched files, we can parse the moduleGraph.
+We get the integrity hashes per file from `.manifest`.
+
+To reduce the amount of fetched files, we should parse the `moduleGraph`.
 
 Required files can occur in multiple places:
 
 - importers: the keys of `.moduleGraph{1,2}`,
-- imported: the values of `.moduleGraph{1,2}.<path>.depedencies[i].{specifier,argument}`
-- exporters: the values of `.exports`
+- imported: the values of
+  `.moduleGraph{1,2}.<path>.depedencies[i].{specifier,argument}`
+- exported: the values of `.exports`
 
-By combining those three lists and making entries unique, we can create a list of all the
-required files, and only those. Mind that the values in `imported` use relative paths,
-so we need Unix path resolution logic to resolve those to absolute URLs, to fetch from.
+By combining those three lists and making entries unique, we can create a list
+of all the required files, and only those.
 
-Like this we can fetch all necessary resources from the JSR, using just the information
-in the lock file, without needing to specify a hash in Nix.
+Mind that the values in `imported` use relative paths, so we need Unix path
+resolution logic to resolve those to absolute URLs, to fetch from.
+
+Also note, that dynamic imports can contain full package specifiers like
+`npm:esbuild-wasm@0.23.1`. We assume that those were added to the lock-file, so
+we just skip them when constructing our file list.
 
 ### HTTPS Packages
 
-Deno supports 3 different JavaScript CDNs:
+Deno supports JavaScript CDNs like:
 
 - `deno.land/x`
 - `esm.sh`
 - `unpkg.com`
 
-For HTTPS Packages, generally, the lock file already lists the resolved URLs for us and
-associates them with the hashes of the files.
+**Implementation Notes**:
+
+For HTTPS Packages, generally, the lock file already lists the resolved URLs for
+us in `.remote` and associates them with the hashes of the files.
 
 There are some caveats to this, though.
 
-In the lock-file, it is possible, that a required URL only occurs in the values of `.redirects`,
-and not in the keys of `.remote`.
+In the lock-file, it is possible, that a required URL only occurs in the values
+of `.redirects`, and not in the keys of `.remote`.
 
-I specifically observed this, [here](https://github.com/iv-org/invidious-companion/blob/d0c4bb79ae4688d019fb281257859e334adb7d8b/deno.lock#L431).
-This is probably related to the fact that an import from `esm.sh/@types/...` can be used by NPM packages in `.dependencies` as `npm:@types/...`.
-And this might not only be true for `esm.sh` or `@types`.
+I specifically observed this,
+[here](https://github.com/iv-org/invidious-companion/blob/d0c4bb79ae4688d019fb281257859e334adb7d8b/deno.lock#L431).
+This is probably related to the fact that an import from `esm.sh/@types/...` can
+be used by NPM packages in `.dependencies` as `npm:@types/...`.
 
-That means generally the URLs for fetching should be obtained from a unique list of
-the values of `.redirects` and the keys of `.remote`.
-
-It also means, it is possible to not have no hash from the lock-file
-for some URLs.
+Since this can presumably only occur for type files, and we don't consider type
+files (see [below](#type-files)), we don't need to worry about that.
 
 #### `esm.sh`
 
@@ -338,31 +341,19 @@ for some URLs.
 Deno implicitly appends the query parameter `?target=denonext` to `esm.sh` URLs,
 if there is not already another `?target=` query parameter in the URL.
 
+**Implementation Notes**:
+
 We have to do the same, when we fetch the files.
 
-However, when passing a URL, to the Deno API to construct a vendor directory (see below),
-we have to use the original, unchanged URL.
-
-##### Response headers
-
-Also `esm.sh` requests can return a `X-Typescript-Types: <url>` header.
-
-Deno will read this header and fetch the `.d.ts` file at the `<url>` and
-add that file to the local cache folder.
-
-Mind that the `<url>` can be a relative path, which then has to be resolved respective to the
-URL, the fetch call was made to.
-
-This is unfortunate, since there is no hash for that `.d.ts` file in the lock file.
-
-On top of that, Deno will recursively fetch all imported `.d.ts` files in that
-entrypoint-`.d.ts` file.
+However, when passing a URL, to the Deno API to construct a vendor directory
+(see [below](#vendor-directory)), we have to use the original, unchanged URL.
 
 #### Private HTTPS repositories
 
-Deno supports [private HTTPS repositories](https://docs.deno.com/runtime/fundamentals/modules/#private-repositories)
-by associating `Bearer` tokens or `Basic` auth credentials with specific URLs in an
-environment variable.
+Deno supports
+[private HTTPS repositories](https://docs.deno.com/runtime/fundamentals/modules/#private-repositories)
+by associating `Bearer` tokens or `Basic` auth credentials with specific URLs in
+an environment variable.
 
 It looks like this:
 
@@ -370,28 +361,33 @@ It looks like this:
 DENO_AUTH_TOKENS=a1b2c3d4e5f6@deno.land;f1e2d3c4b5a6@example.com:8080;username:password@deno.land
 ```
 
-**NOT IMPLEMENTED**: This would require us to somehow get the `(credential, domain)`
-pairs and then provide all `curl` calls to the respective domain with the respective auth headers.
+**NOT IMPLEMENTED**: This would require us to somehow get the
+`(credential, domain)` pairs and then provide all `curl` calls to the respective
+domain with the respective auth headers.
 
 ### Vendor directory
 
-Both the JSR and HTTPS packages end up in the vendor directory, if the `--vendor`
-flag is used or the `"vendor": true` option is set in `deno.json`.
+Both the JSR and HTTPS packages end up in the vendor directory, if the
+`--vendor` flag is used or the `"vendor": true` option is set in `deno.json`.
+
+**Implementation Notes**:
 
 This build helper uses the vendor directory, since it provides a much better
 interface compared to not using it.
 
 #### File renaming scheme
 
-Generally, Deno maps the paths from the file URLs directly to paths in the vendor directory.
-However, for cross-platform compatibility, Deno uses a **custom file renaming scheme**,
-if file names use problematic characters.
+Generally, Deno maps the paths from the file URLs directly to paths in the
+vendor directory. However, for cross-platform compatibility, Deno uses a
+**custom file renaming scheme**, if file names use problematic characters.
 
-This scheme is currently implemented in rust and can be found
+This scheme is currently implemented in Rust and can be found
 [here (version at the time of writing)](https://github.com/denoland/deno_cache_dir/blob/0.23.0/rs_lib/src/local.rs#L557).
 
-There is a JavaScript and Rust wrapper library for it in the same repository, [available
-at JSR](https://jsr.io/@deno/cache-dir/doc/~/HttpCache.prototype.set).
+**Implementation Notes**:
+
+There is a JavaScript and Rust wrapper library for it in the same repository,
+[available at JSR](https://jsr.io/@deno/cache-dir/doc/~/HttpCache.prototype.set).
 
 It exposes these functions
 
@@ -409,17 +405,20 @@ HttpCache.prototype.set(
 ): void
 ```
 
-We use these functions from Rust to construct the vendor directory.
-We just need to pass tuples of `(url, headers, file_content)` to the function,
-where `url` is the original URL used to fetch the file, `headers` are the response headers for that fetch,
-and `file_content` is read from our fetched files from the Nix store.
+We use these functions from Rust to construct the vendor directory. They expect
+tuples of `(url, headers, file_content)`, where `url` is the original URL used
+to fetch the file, `headers` are the response headers for that fetch, and
+`file_content` is read from our fetched files from the Nix store.
+
+We use them from Rust and not from JavaScript, because we don't have a way to
+package a Deno package with dependencies, except for the very build helper we
+are building here, which we can't use (chicken-egg-problem)
 
 #### `manifest.json`
 
 On top of that, in the `vendor` directory, there is a `manifest.json`.
 
-**Target Location:**
-`vendor/manifest.json`
+**Target Location:** `vendor/manifest.json`
 
 **Format:**
 
@@ -443,30 +442,23 @@ On top of that, in the `vendor` directory, there is a `manifest.json`.
 ```
 
 This file plays a role in this renaming scheme. It records some response headers
-of fetched files. Without the correct response headers in this file,
-the files won't be recognized by the Deno CLI.
+of fetched files. Without the correct response headers in this file, the files
+won't be recognized by the Deno CLI.
 
 The relevant headers are listed in the rust code
 [here (version at the time of writing)](https://github.com/denoland/deno_cache_dir/blob/0.23.0/rs_lib/src/local.rs#L802).
 
-This poses a problem for this build helper,
-since we need to acquire those response headers in a FOD and copy them to `$out`,
-so we can use them later. However, the hashes we have from the lock file are just
-for the files themselves, not for the response headers.
+**Implementation Notes**:
 
-From my testing, the response headers only occurred for HTTPS packages.
+The `manifest.json` file itself is also created by the
+`HttpCache.prototype.set(...)` function mentioned above. But as we saw now, it
+is important that we provide it the relevant response headers.
 
-This means for HTTPS packages, we can't use the hashes from the lock file, but
-instead have to **create a FOD with a hash given in Nix**.
-
-The `manifest.json` file itself is also created by the `HttpCache.prototype.set(...)` function mentioned above.
-But as we saw now, it is important that we provide it the relevant response headers.
-
-## NPM Packages
+### NPM Packages
 
 Deno also supports the NPM registry.
 
-### Package `tarball`
+#### Package `tarball`
 
 From the package specifier we can construct the URL for a package's tarball and
 using the hash given in the lock file, we can fetch it in a FOD.
@@ -481,13 +473,15 @@ using the hash given in the lock file, we can fetch it in a FOD.
 - `$DENO_DIR/npm/registry.npmjs.org/<name>/<version>`
 - `$DENO_DIR/npm/registry.npmjs.org/@<scope>/<name>/<version>`
 
+**Implementation Notes**:
+
 We need to extract the tarballs to the correct target location, so Deno can find
 the files.
 
-### `registry.json`
+#### `registry.json`
 
-Deno uses a subset of the JSON file located at the following URL at the NPM registry
-and calls it `registry.json`.
+Deno uses a subset of the JSON file located at the following URL at the NPM
+registry and calls it `registry.json`.
 
 Deno requires this file to be present for all NPM packages.
 
@@ -535,55 +529,191 @@ Deno's `registry.json` file
 - `$DENO_DIR/npm/registry.npmjs.org/<name>/registry.json`
 - `$DENO_DIR/npm/registry.npmjs.org/@<scope>/<name>/registry.json`
 
-Those files are mutable. They have a `.version` field, which holds the currently available versions of a package.
-So instead of fetching that file, we have to construct it from the available information.
+**Implementation Notes**:
 
-Like with the `meta.json` file, we have make sure,
-that for each version a package occurs in the lock-file, there is an entry in `.versions`.
+Those files are mutable. They have a `.version` field, which holds the currently
+available versions of a package. So instead of fetching that file, we have to
+construct it from the available information.
 
-Fortunately, Deno doesn't need all the fields or the information in them,
-so we can put empty values for some and omit the field altogether for others.
+Like with the `meta.json` file, we have to make sure, that for each version a
+package occurs in the lock-file, there is an entry in `.versions`.
 
-Finally, we need to make sure we put the file at the correct target location, so
-Deno can find it.
+Fortunately, Deno doesn't need all the fields or the information in them, so we
+can put empty values for some and omit the field altogether for others.
 
-### `node_modules` directory
+Finally, we need to make sure, we put the file at the correct target location,
+so Deno can find it.
+
+#### `node_modules` directory
 
 The `deno.json` option
 [`nodeModulesDir`](https://docs.deno.com/runtime/fundamentals/node/#node_modules)
 and the CLI flag
 [`--allow-scripts`](https://docs.deno.com/runtime/reference/CLI/add/#options-allow-scripts)
-together enable a feature of NPM called [`lifecycle scripts`](https://docs.npmjs.com/CLI/v6/using-npm/scripts#life-cycle-operation-order).
+together enable a feature of NPM called
+[`lifecycle scripts`](https://docs.npmjs.com/CLI/v6/using-npm/scripts#life-cycle-operation-order).
 
 Specifically there is a lifecycle script called `postinstall`, which triggers
 after a package has been installed and enables that package to perform an
-arbitrary operation on the users machine, like downloading external dependencies.
+arbitrary operation on the users machine, like downloading external
+dependencies.
 
-Deno constructs its own version of a `node_modules` directory,
-to be compatible with the NPM lifecycle scripts.
+Deno constructs its own version of a `node_modules` directory, to be compatible
+with the NPM lifecycle scripts.
 
-**NOT IMPLEMENTED**: This would require us constructing the `node_modules` directory,
-possibly with a rust library used by Deno:
+**NOT IMPLEMENTED**: This would require us constructing the `node_modules`
+directory, possibly with a rust library used by Deno:
 
 - <https://docs.rs/deno_npm_cache/0.28.0/deno_npm_cache/>
 - <https://docs.rs/deno_npm/0.35.0/deno_npm/>
 
-And then creating a FOD and executing the lifecycle script in there,
-which will require a hash in Nix.
+And then creating a FOD and executing the lifecycle script in there, which will
+require a hash in Nix.
 
-### Custom NPM registries and `.npmrc`
+#### Custom NPM registries and `.npmrc`
 
 NPM supports a configuration file called
 [`.npmrc`](https://docs.npmjs.com/CLI/v8/configuring-npm/npmrc).
 
-It enables the user to associate a `@scope` with a custom URL, and associate that URL with an auth token.
+It enables the user to associate a `@scope` with a custom URL, and associate
+that URL with an auth token.
 
 ```ini
 @myscope:registry=https://mycustomregistry.example.org
 //mycustomregistry.example.org/:_authToken=MYTOKEN
 ```
 
-**NOT IMPLEMENTED**: This would require us parsing the `.npmrc` file.
-Then we need to extract the `(@scope, domain)` pairs.
-Then we need to adapt the construction of NPM URLs for the relevant scopes.
-And then provide all `curl` calls to the respective domain with the respective auth headers.
+**NOT IMPLEMENTED**: This would require us parsing the `.npmrc` file. Then we
+need to extract the `(@scope, domain)` pairs. Also, we need to adapt the
+construction of NPM URLs for the relevant scopes. And then provide all fetch
+calls to the respective domain with the respective auth headers.
+
+### Type files
+
+Deno supports various methods to add second class dependencies on type files.
+
+They are second class, because usually they are
+
+- not added to the `deno.json` file or the lock-file
+- missing an integrity hash
+- lazily fetched, only when running `deno check` or `deno compile`, not when
+  running `deno install`
+- only evaluated when running `deno check` or `deno compile`
+
+I made multiple issues in Deno repos upstream, but it appears this is by design.
+
+- <https://github.com/denoland/deno_graph/issues/594>
+- <https://github.com/denoland/deno/issues/30375>
+
+Also see this issue, which points out inconsistencies and bugs around this type
+import system.
+
+- <https://github.com/denoland/deno/issues/30406>
+
+**NOT IMPLEMENTED**:
+
+As you will see, fetching all those type files is generally very complicated.
+
+To keep things simple, we add the `--no-check` flag to our `deno compile`
+command, which will skip fetching and evaluation of the type files entirely.
+
+This means, this build helper does not generally support type checks.
+
+#### Inline type imports
+
+With these two Deno features, users can specify type imports inside code
+comments:
+
+- [@ts-types/@deno-types](https://docs.deno.com/runtime/reference/ts_config_migration/#providing-types-when-importing)
+- [triple slash directive](https://docs.deno.com/runtime/reference/ts_config_migration/#triple-slash-directive)
+
+The imports are generally not added to the lock-file.
+
+There are exceptions:
+
+- NPM type packages are added to the lock-file, like regular NPM packages
+- HTTPS URLs are added to `.redirects`, if they are redirected
+
+**NOT IMPLEMENTED**:
+
+To find the imports, we would need to parse, or at least grep all the source
+code, and possibly all the source code of dependencies and fetch the type
+dependencies.
+
+Also type files can generally import other type files, so we would need to
+recursively parse and fetch imports in the type files to construct a complete
+dependency graph. This gets very complicated, since the same type files can also
+be imported multiple times in the dependency graph, by different other files. So
+we would also need some deduplication, which is not trivial, since we want to
+run our fetch calls asynchronously for performance reasons.
+
+Also, at this point grepping with regex is not good enough any longer, since
+there will be false positives and false negatives, if we don't properly parse
+the TypeScript files.
+
+Looking at the Nix side, to not create another FOD, we would need a derivation,
+that does the code analysis and extracts URLs, which are then passed to the
+fetcher.
+
+#### Type import in `deno.json`
+
+With this Deno feature, users can specify type imports inside `deno.json`, but
+not in the dependency section.
+
+- [deno.json's compilerOption.types](https://docs.deno.com/runtime/reference/ts_config_migration/#supplying-%22types%22-in-deno.json)
+
+**NOT IMPLEMENTED**:
+
+In this case, we don't need to parse the entire source code, but just the
+`deno.json`, which is much easier. However all the other problems mentioned
+above remain.
+
+#### Response headers
+
+Deno generally supports fetching types for HTTPS dependencies via a
+[`X-Typescript-Types: <url>` response header](https://docs.deno.com/runtime/fundamentals/typescript/#providing-types-for-http-modules).
+
+In my testing, only `esm.sh` supported this feature.
+
+Deno will read this header and fetch the `.d.ts` file at the `<url>` and add
+that file to the local cache folder.
+
+Deno will recursively fetch all imported `.d.ts` files in that
+entrypoint-`.d.ts` file.
+
+The `<url>` can be a relative path, which then has to be resolved respective to
+the URL, the fetch call was made to.
+
+**NOT IMPLEMENTED**:
+
+This method is slightly different from the methods above, since the required
+type files will only become known in the fetch step.
+
+The other problems mentioned above remain.
+
+## "import from lock file" feature
+
+It's currently not feasible to have an "import from lock file" functionality.
+
+There are several technical problems, that make it currently impractical to
+build the dependencies without a hash provided in nix:
+
+1. Nixpkgs requirements: The necessity in Nixpkgs to split the "fetch FOD" from
+   the "file transformation step", makes it impossible, since we need to record
+   the response headers in a separate FOD and then transform the files in the
+   another derivation using that information. Since there is no information in
+   the lock file about the headers, we have to copy the headers information to
+   `$out` of the FOD, which changes the hash, so we can't use the hashes from
+   the lock file for all the fetches where we need to record the headers.
+1. Performance: JSR's API architecture requires us to create a FOD per file of a
+   dependency (not per package, like NPM). This provides great granular caching,
+   but terrible performance when fetching, since the disc IO quickly gets out of
+   hand, with big JSR packages with hundreds of files.
+1. Nix compatability: Type file imports (which are not supported anyway, due to
+   their complexity) cannot work with this feature, since there are no hashes
+   for them in the lock-file, and some type files may only become known in the
+   fetch step.
+1. Feasibility: This feature would require a complete reimplementation of all
+   the fetching logic in Nix, which is a lot of effort, due to its complexity.
+   And the maintenance effort would double, which is not desirable, since Deno's
+   dependency cache API is still unstable.
