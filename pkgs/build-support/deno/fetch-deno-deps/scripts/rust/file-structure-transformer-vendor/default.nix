@@ -6,7 +6,7 @@ let
   cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
 in
 {
-  file-transformer-vendor = rustPlatform.buildRustPackage {
+  file-structure-transformer-vendor = rustPlatform.buildRustPackage {
     pname = cargoToml.package.name;
     inherit (cargoToml.package) version;
 
