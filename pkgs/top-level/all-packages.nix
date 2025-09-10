@@ -3605,8 +3605,6 @@ with pkgs;
 
   node2nix = nodePackages.node2nix;
 
-  inherit (callPackages ../build-support/deno/fetch-deno-deps { }) fetchDenoDeps;
-
   inherit (callPackages ../build-support/deno/fetch-deno-deps/scripts/deno/default.nix { }) fetch-deno-deps-scripts;
 
   ktailctl = kdePackages.callPackage ../applications/networking/ktailctl { };
