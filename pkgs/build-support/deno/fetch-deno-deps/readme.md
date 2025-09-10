@@ -1,5 +1,16 @@
 # Deno Custom Fetcher
 
+This goal of this file is to make the code maintainable.
+
+Deno's dependency cache API is very complex and obscure. It requires a lot of
+research and some reverse engineering to figure it all out.
+
+Also Nixpkgs imposes some complicated constraints on the design of our code,
+which are not trivially understood, nor well documented at the time of writing.
+
+So to understand why the code is the way it is, a maintainer should read this whole file first,
+and use it as a reference later.
+
 ## Formats
 
 This section documents what formats the Deno CLI uses for its dependency
@@ -8,6 +19,7 @@ cache at the time of writing.
 It's assumed that the reader knows:
 
 - what Deno is
+- how Deno's packaging works, roughly
 - what Nix and Nixpkgs is
 - what the purpose of a language build helper in Nixpkgs is
 - what Fixed Output Derivations (FODs) are,
@@ -132,10 +144,8 @@ Multiple steps are necessary, to fetch a package from the JSR.
 }
 ```
 
-**Implementation Notes**:
-
-These files are mutable and change as new versions appear. Therefore, we should
-not add them to the output of an FOD.
+**Implementation Notes**: These files are mutable and change as new versions appear.
+Therefore, we should not add them to the output of an FOD.
 
 The Deno CLI requires these files, however, so we need to construct them from
 the information we get from the lock file.
@@ -277,9 +287,7 @@ but the module graph can also look like this:
 
 </details>
 
-**Implementation Notes**:
-
-These files are immutable. JSR promises they will never change.
+**Implementation Notes**: These files are immutable. JSR promises they will never change.
 
 The integrity hashes for JSR packages in the lock-file, are sha256 hashes over
 the contents of the `<version>_meta.json` files.
@@ -294,9 +302,7 @@ list of the files.
 
 **URL**: `https://jsr.io/@<scope>/<package-name>/<version>/<file_path>`
 
-**Implementation Notes**:
-
-We get the integrity hashes per file from `.manifest`.
+**Implementation Notes**: We get the integrity hashes per file from `.manifest`.
 
 To reduce the amount of fetched files, we should parse the `moduleGraph`.
 
@@ -325,9 +331,8 @@ Deno supports JavaScript CDNs like:
 - `esm.sh`
 - `unpkg.com`
 
-**Implementation Notes**:
-
-For HTTPS Packages, generally, the lock file already lists the resolved URLs for
+**Implementation Notes**: For HTTPS Packages, generally,
+the lock file already lists the resolved URLs for
 us in `.remote` and associates them with the hashes of the files.
 
 There are some caveats to this, though.
@@ -345,14 +350,10 @@ files (see [below](#type-files)), we don't need to worry about that.
 
 #### `esm.sh`
 
-##### Extra query parameter
-
 Deno implicitly appends the query parameter `?target=denonext` to `esm.sh` URLs,
 if there is not already another `?target=` query parameter in the URL.
 
-**Implementation Notes**:
-
-We have to do the same, when we fetch the files.
+**Implementation Notes**: We have to do the same, when we fetch the files.
 
 However, when passing a URL, to the Deno API to construct a vendor directory
 (see [below](#vendor-directory)), we have to use the original, unchanged URL.
@@ -370,7 +371,7 @@ It looks like this:
 DENO_AUTH_TOKENS=a1b2c3d4e5f6@deno.land;f1e2d3c4b5a6@example.com:8080;username:password@deno.land
 ```
 
-**NOT IMPLEMENTED**: This would require us to somehow get the
+**Not implemented**: This would require us to somehow get the
 `(credential, domain)` pairs and then provide all `curl` calls to the respective
 domain with the respective auth headers.
 
@@ -379,10 +380,8 @@ domain with the respective auth headers.
 Both the JSR and HTTPS packages end up in the vendor directory, if the
 `--vendor` flag is used or the `"vendor": true` option is set in `deno.json`.
 
-**Implementation Notes**:
-
-This build helper uses the vendor directory, since it provides a much better
-interface compared to not using it.
+**Implementation Notes**: This build helper uses the vendor directory,
+since it provides a much better interface compared to not using it.
 
 #### File renaming scheme
 
@@ -457,9 +456,7 @@ won't be recognized by the Deno CLI.
 The relevant headers are listed in the rust code
 [here (version at the time of writing)](https://github.com/denoland/deno_cache_dir/blob/0.23.0/rs_lib/src/local.rs#L802).
 
-**Implementation Notes**:
-
-The `manifest.json` file itself is also created by the
+**Implementation Notes**: The `manifest.json` file itself is also created by the
 `HttpCache.prototype.set(...)` function mentioned above. But as we saw now, it
 is important that we provide it the relevant response headers.
 
@@ -482,10 +479,8 @@ using the hash given in the lock file, we can fetch it in a FOD.
 - `$DENO_DIR/npm/registry.npmjs.org/<name>/<version>`
 - `$DENO_DIR/npm/registry.npmjs.org/@<scope>/<name>/<version>`
 
-**Implementation Notes**:
-
-We need to extract the tarballs to the correct target location, so Deno can find
-the files.
+**Implementation Notes**: We need to extract the tarballs to the correct target location,
+so Deno can find the files.
 
 #### `registry.json`
 
@@ -538,11 +533,9 @@ Deno's `registry.json` file
 - `$DENO_DIR/npm/registry.npmjs.org/<name>/registry.json`
 - `$DENO_DIR/npm/registry.npmjs.org/@<scope>/<name>/registry.json`
 
-**Implementation Notes**:
-
-Those files are mutable. They have a `.version` field, which holds the currently
-available versions of a package. So instead of fetching that file, we have to
-construct it from the available information.
+**Implementation Notes**: Those files are mutable. They have a `.version` field,
+which holds the currently available versions of a package.
+So instead of fetching that file, we have to construct it from the available information.
 
 Like with the `meta.json` file, we have to make sure, that for each version a
 package occurs in the lock-file, there is an entry in `.versions`.
@@ -570,7 +563,7 @@ dependencies.
 Deno constructs its own version of a `node_modules` directory, to be compatible
 with the NPM lifecycle scripts.
 
-**NOT IMPLEMENTED**: This would require us constructing the `node_modules`
+**Not implemented**: This would require us constructing the `node_modules`
 directory, possibly with a rust library used by Deno:
 
 - <https://docs.rs/deno_npm_cache/0.28.0/deno_npm_cache/>
@@ -592,7 +585,7 @@ that URL with an auth token.
 //mycustomregistry.example.org/:_authToken=MYTOKEN
 ```
 
-**NOT IMPLEMENTED**: This would require us parsing the `.npmrc` file. Then we
+**Not implemented**: This would require us parsing the `.npmrc` file. Then we
 need to extract the `(@scope, domain)` pairs. Also, we need to adapt the
 construction of NPM URLs for the relevant scopes. And then provide all fetch
 calls to the respective domain with the respective auth headers.
@@ -619,9 +612,7 @@ import system.
 
 - <https://github.com/denoland/deno/issues/30406>
 
-**NOT IMPLEMENTED**:
-
-As you will see, fetching all those type files is generally very complicated.
+**Not implemented**: As you will see, fetching all those type files is generally very complicated.
 
 To keep things simple, we add the `--no-check` flag to our `deno compile`
 command, which will skip fetching and evaluation of the type files entirely.
@@ -643,9 +634,7 @@ There are exceptions:
 - NPM type packages are added to the lock-file, like regular NPM packages
 - HTTPS URLs are added to `.redirects`, if they are redirected
 
-**NOT IMPLEMENTED**:
-
-To find the imports, we would need to parse, or at least grep all the source
+**Not implemented**: To find the imports, we would need to parse, or at least grep all the source
 code, and possibly all the source code of dependencies and fetch the type
 dependencies.
 
@@ -671,9 +660,7 @@ not in the dependency section.
 
 - [deno.json's compilerOption.types](https://docs.deno.com/runtime/reference/ts_config_migration/#supplying-%22types%22-in-deno.json)
 
-**NOT IMPLEMENTED**:
-
-In this case, we don't need to parse the entire source code, but just the
+**Not implemented**: In this case, we don't need to parse the entire source code, but just the
 `deno.json`, which is much easier. However all the other problems mentioned
 above remain.
 
@@ -693,40 +680,36 @@ entrypoint-`.d.ts` file.
 The `<url>` can be a relative path, which then has to be resolved respective to
 the URL, the fetch call was made to.
 
-**NOT IMPLEMENTED**:
-
-This method is slightly different from the methods above, since the required
+**Not implemented**: This method is slightly different from the methods above, since the required
 type files will only become known in the fetch step.
 
 The other problems mentioned above remain.
 
 ## "import from lock file" feature
 
-**NOT IMPLEMENTED**:
-
-It's currently not feasible to have an "import from lock file" functionality.
+**Not implemented**: It's currently not feasible to have an "import from lock file" functionality.
 
 There are several technical problems, that make it currently impractical to
 build the dependencies without a hash provided in nix:
 
-1. Nixpkgs requirements: The necessity in Nixpkgs to split the "fetch FOD" from
+1. **Nixpkgs requirements**: The necessity in Nixpkgs to split the "fetch FOD" from
    the "file transformation step", makes it impossible, since we need to record
    the response headers in a separate FOD and then transform the files in the
    another derivation using that information. Since there is no information in
    the lock file about the headers, we have to copy the headers information to
    `$out` of the FOD, which changes the hash, so we can't use the hashes from
    the lock file for all the fetches where we need to record the headers.
-1. Performance: JSR's API architecture requires us to create a FOD per file of a
+1. **Performance**: JSR's API architecture requires us to create a FOD per file of a
    dependency (not per package, like NPM). This provides great granular caching,
    but terrible performance when fetching, since the disc IO quickly gets out of
    hand, with big JSR packages with hundreds of files. I actually tested this,
    and a fetch with many jsr dependencies could really take a few minutes,
    compared to the seconds it takes now.
-1. Nix compatability: Type file imports (which are not supported anyway, due to
+1. **Nix compatability**: Type file imports (which are not supported anyway, due to
    their complexity) cannot work with this feature, since there are no hashes
    for them in the lock-file, and some type files may only become known in the
    fetch step.
-1. Feasibility: This feature would require a complete reimplementation of all
+1. **Feasibility**: This feature would require a complete reimplementation of all
    the fetching logic in Nix, which is a lot of effort, due to its complexity.
    And the maintenance effort would double, which is not desirable, since Deno's
    dependency cache API is still unstable.
@@ -749,7 +732,7 @@ Due to the build helper existing in the context of Nixpkgs,
 there are a couple of constraints to keep in mind, which are explained in detail below.
 
 We need:
-- a **custom fetcher**, can't use the language's package manager CLI
+- a **custom fetcher**; we can't use the language's package manager CLI
 - to **decouple fetching logic** from the language's package manager formats
   (like lock-file or dependency cache folder)
 - to provide an **IFD-free build** method
@@ -792,7 +775,7 @@ a change to the hash of the FOD.
 
 #### Import from derivation (IFD) and "import from lock file" feature
 
-**What is IFD:**
+##### What is IFD?
 
 <https://nix.dev/manual/nix/2.23/language/import-from-derivation>
 
@@ -811,9 +794,8 @@ aiming for an IFD-free build.
 The derivation containing the fetched files, then is an input to the derivation
 building the package.
 
----
+##### What is "import from lock file"?
 
-**What is "import from lock file":**
 By default, to fetch anything from the internet in Nixpkgs, you need a fixed output derivation, which
 requires an `outputHash` to verify, that the output did not change compared to last time.
 
@@ -843,33 +825,29 @@ Creating many FODs can have serious performance implications, since each FOD
 means a new build container and build environment etc. So the disk IO can
 become a bottleneck if this goes into the thousands.
 
----
-
-**packaging in nixpkgs vs packaging while developing:**
+##### "Packaging in nixpkgs" vs "packaging while developing"
 
 There are two different user scenarios to consider:
 
 1. Package maintainers in Nixpkgs, that want to package some remote source code
-using the build-helper.
+   using the build-helper.
 
-Since they can't use IFD, they can't just fetch the source code in a build
-and then import that lock file in Nix.
+   Since they can't use IFD, they can't just fetch the source code in a build
+   and then import that lock file in Nix.
 
-This usually means, they provide the hash manually.
+   This usually means, they provide the hash manually.
 
-Sometimes the remote source code does not have a lock-file.
-Then they have to generate and vendor the lock file in the Nixpkgs repo.
+   Sometimes the remote source code does not have a lock-file.
+   Then they have to generate and vendor the lock file in the Nixpkgs repo.
 
 2. Developers, writing their own language package, that want to package their
-local code with Nix using the build-helper.
+   local code with Nix using the build-helper.
 
-Developers usually don't care about IFD, but they do care about the nuisance
-of having to manually change the hash every time they import a new package
-while developing.
+   Developers usually don't care about IFD, but they do care about the nuisance
+   of having to manually change the hash every time they import a new package
+   while developing.
 
----
-
-**Problem:**
+##### Summary
 
 So to summarize:
 
@@ -899,7 +877,7 @@ It's important to differentiate here, because everything in eval time,
 is written in Nix and everything in build time is executed in a build container,
 using some language different from Nix.
 
-Also, whenever we have data flow from build time to eval time, we do an IFD.
+Also, whenever we would have data flow from build time to eval time, we would do an IFD.
 
 The separation of the 3 concerns:
 1. lock-file transformer
@@ -930,6 +908,9 @@ Each of the 3 steps:
 3. file structure transformer
 
 uses their own scripts and has their own tests.
+
+The tests also act as specifications for the steps.
+You can for example look at the `Common Lock Format` in the test cases.
 
 Read more about the tests in `/pkgs/test/build-deno-package/integration-tests/readme.md`
 
