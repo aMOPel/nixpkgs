@@ -949,6 +949,9 @@ The logic is written in Deno.
 It uses the 3 `Common Lock` files from the previous step, downloads all the
 dependencies and adds `outPaths` to the 3 `Common Lock` files.
 
+However, it does not write 3 three files to disk just like that, but combines
+`jsr:` and `https:` into `vendor.json` (see next step).
+
 It does not structure the downloaded files whatsoever. Each file is written
 to a unique path (using sha256 over the download URL) in the same folder.
 
