@@ -26,7 +26,13 @@ in
     stdenvNoCC.mkDerivation {
       pname = denoJson.name;
       inherit (denoJson) version;
-      src = lib.sourceFilesBySuffices ./. [ ".ts" ];
+      src = lib.fileset.toSource {
+        root = ./.;
+        fileset = lib.fileset.unions [
+          ./src
+          ./deno.json
+        ];
+      };
       buildPhase =
         ''
           mkdir -p $out;

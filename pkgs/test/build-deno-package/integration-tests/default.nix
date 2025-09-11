@@ -13,8 +13,14 @@ in
   test-fetch-deno-deps-scripts = stdenvNoCC.mkDerivation {
     pname = denoJson.name;
     inherit (denoJson) version;
-    src = lib.sourceFilesBySuffices ./. [ ".ts" ];
     DENO_DIR = "./.deno";
+    src = lib.fileset.toSource {
+      root = ./.;
+      fileset = lib.fileset.unions [
+        ./src
+        ./deno.json
+      ];
+    };
     buildPhase = ''
       deno test --allow-all ./src/lockfileTransformer.test.ts -- lockfile-transformer
       deno test --allow-all ./src/fetcher.test.ts -- single-fod-fetcher

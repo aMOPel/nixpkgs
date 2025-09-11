@@ -10,11 +10,14 @@ in
     pname = cargoToml.package.name;
     inherit (cargoToml.package) version;
 
-    src = lib.sourceFilesBySuffices ./. [
-      ".rs"
-      ".toml"
-      ".lock"
-    ];
+    src = lib.fileset.toSource {
+      root = ./.;
+      fileset = lib.fileset.unions [
+        ./src
+        ./Cargo.lock
+        ./Cargo.toml
+      ];
+    };
     cargoLock.lockFile = ./Cargo.lock;
   };
 }
