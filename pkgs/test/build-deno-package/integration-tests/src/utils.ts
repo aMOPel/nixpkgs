@@ -1,9 +1,11 @@
 import { Args, Fixture, Test, VirtualFile } from "./types.d.ts";
 
+export const globalPathPrefix = "./testFolder";
+
 export const enc = new TextEncoder();
 export const dec = new TextDecoder();
 
-async function virtualFileToFs(f: VirtualFile) {
+export async function virtualFileToFs(f: VirtualFile) {
   if (f.isReal) {
     return;
   }
@@ -102,19 +104,19 @@ function deepEquals(a: any, b: any, visited = new WeakMap()): boolean {
   return true;
 }
 
-async function fancyDiff(f1: VirtualFile, f2: VirtualFile) {
-  if (f1.path === f2.path) {
-    f2.path += ".other";
+async function fancyDiff(actual: VirtualFile, expected: VirtualFile) {
+  if (actual.path === expected.path) {
+    expected.path += ".expected";
   }
-  await virtualFileToFs(f1);
-  await virtualFileToFs(f2);
+  await virtualFileToFs(actual);
+  await virtualFileToFs(expected);
   const { output: { stdout }, statuses } = await argsToPipe([
     "diff",
     "-u",
-    f1.path,
-    f2.path,
+    actual.path,
+    expected.path,
   ], ["diff-so-fancy"]);
-  if (statuses.some((v)=>v.code>0)) {
+  if (statuses.some((v) => v.code > 0)) {
     console.log(dec.decode(stdout));
     assertEq(statuses[0].code, 0, "diff exited with non-zero");
   }
@@ -133,13 +135,19 @@ export function assertEq(a: any, b: any, msg?: string) {
   }
 }
 
-async function runFixture(
+async function runTest(
   f: Fixture,
-  preFn?: (f: Fixture) => Promise<() => Promise<void>>,
+  preFn?: () => Promise<(() => Promise<void>) | void>,
 ) {
-  let cleanupFn = async () => {};
+  try {
+    await Deno.remove("testFolder", { recursive: true });
+  } catch (e) {
+  }
+  await Deno.mkdir("testFolder", { recursive: true });
+  Deno.chdir("testFolder");
+  let cleanupFn: (() => Promise<void>) | void = async () => {};
   if (preFn !== undefined) {
-    cleanupFn = await preFn(f);
+    cleanupFn = await preFn();
   }
 
   try {
@@ -184,18 +192,20 @@ async function runFixture(
       await fancyDiff(actual, expected);
     }));
   } finally {
-    await cleanupFn();
+    if (cleanupFn) {
+      await cleanupFn();
+    }
+    Deno.chdir("..");
   }
 }
 
 export function runTests(
-  fixtures: Test[],
-  preFn?: (f: Fixture) => Promise<() => Promise<void>>,
+  tests: Test[],
 ) {
-  fixtures.forEach((test) => {
+  tests.forEach((test) => {
     Deno.test({
       name: test.name,
-      fn: async () => await runFixture(test.fixture, preFn),
+      fn: async () => await runTest(test.fixture, test.preFn),
     });
   });
 }

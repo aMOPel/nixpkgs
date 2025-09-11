@@ -8,7 +8,7 @@ export type VirtualFile = {
 export type Console = {
   stderr?: string;
   stdout?: string;
-  code?: number,
+  code?: number;
 };
 export type Fixture = {
   inputs: {
@@ -26,7 +26,11 @@ export type Fixture = {
     };
   };
 };
+export type PreFn = () => Promise<(() => Promise<void>) | void>;
 export type Test = {
   name: string;
   fixture: Fixture;
+  preFn?: PreFn;
 };
+export type VirtualFS = Record<string, string>;
+export type NestedVirtualFS = Record<string, VirtualFS>;

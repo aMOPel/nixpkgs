@@ -1,7 +1,5 @@
 import { argsToCommand, assertEq, dec, runTests } from "./utils.ts";
-import { Fixture, Test, Vars } from "./types.d.ts";
-
-type VirtualFS = Record<string, string>;
+import { Fixture, PreFn, Test, Vars, VirtualFS } from "./types.d.ts";
 
 type FetcherFixture = {
   inJsrJsonContent: string;
@@ -21,7 +19,9 @@ type ServerConfig = {
   root: string;
 };
 
-function startMockServer(serverConfig: ServerConfig) {
+function startMockServer(
+  serverConfig: ServerConfig,
+): PreFn {
   return async () => {
     await Deno.mkdir(serverConfig.root, { recursive: true });
     const command = argsToCommand([
@@ -59,19 +59,22 @@ const serverConfig = {
 
 const PLACEHOLDER = "$DOMAIN$";
 
-function fixtureFrom(f: FetcherFixture): Fixture {
-  return _fixtureFrom(f, serverConfig);
+function fixtureFrom(f: FetcherFixture): { fixture: Fixture; preFn: PreFn } {
+  return {
+    fixture: _fixtureFrom(f, serverConfig),
+    preFn: startMockServer(serverConfig),
+  };
 }
 
 function checkOutFetchedFilesFs(f: FetcherFixture) {
-  function extractOutPaths(jsonContent: string): Array<string> {
+  function getOutPaths(jsonContent: string): Array<string> {
     return (JSON.parse(jsonContent) as Array<any>).map((e: any) =>
       e.outPath as string
     );
   }
   const fetchedFilesFsExpected = [
-    ...extractOutPaths(f.outNpmJsonContent),
-    ...extractOutPaths(f.outVendoredJsonContent),
+    ...getOutPaths(f.outNpmJsonContent),
+    ...getOutPaths(f.outVendoredJsonContent),
   ].sort();
   const fetchedFilesFsFromFixture = Object.keys(f.outFetchedFilesFS).sort();
   assertEq(
@@ -101,9 +104,9 @@ function replacePlaceholder(
 }
 
 function _fixtureFrom(f: FetcherFixture, serverConfig: ServerConfig): Fixture {
-  const bin = Deno.args[0]
+  const bin = Deno.args[0];
   if (!bin) {
-    throw new Error("test expects cli args[0]: binary to execute")
+    throw new Error("test expects cli args[0]: binary to execute");
   }
 
   const actualDomain = `http://${serverConfig.host}:${serverConfig.port}`;
@@ -208,7 +211,7 @@ function _fixtureFrom(f: FetcherFixture, serverConfig: ServerConfig): Fixture {
 const lockfileTransformerTests: Array<Test> = [
   {
     name: "empty",
-    fixture: fixtureFrom({
+    ...fixtureFrom({
       inJsrJsonContent: `[]`,
       inNpmJsonContent: `[]`,
       inHttpsJsonContent: `[]`,
@@ -221,7 +224,7 @@ const lockfileTransformerTests: Array<Test> = [
 
   {
     name: "https_normal",
-    fixture: fixtureFrom({
+    ...fixtureFrom({
       inJsrJsonContent: `[]`,
       inNpmJsonContent: `[]`,
       inHttpsJsonContent: `[
@@ -259,7 +262,7 @@ const lockfileTransformerTests: Array<Test> = [
 
   {
     name: "https_original_url_override",
-    fixture: fixtureFrom({
+    ...fixtureFrom({
       inJsrJsonContent: `[]`,
       inNpmJsonContent: `[]`,
       inHttpsJsonContent: `[
@@ -299,7 +302,7 @@ const lockfileTransformerTests: Array<Test> = [
 
   {
     name: "npm_normal",
-    fixture: fixtureFrom({
+    ...fixtureFrom({
       inJsrJsonContent: `[]`,
       inNpmJsonContent: `[
   {
@@ -453,7 +456,7 @@ const lockfileTransformerTests: Array<Test> = [
 
   {
     name: "npm_same_name_different_version",
-    fixture: fixtureFrom({
+    ...fixtureFrom({
       inJsrJsonContent: `[]`,
       inNpmJsonContent: `[
   {
@@ -592,7 +595,7 @@ const lockfileTransformerTests: Array<Test> = [
 
   {
     name: "jsr_normal",
-    fixture: fixtureFrom({
+    ...fixtureFrom({
       inJsrJsonContent: `[
   {
     "url": "${PLACEHOLDER}/@scope/package/version1_meta.json",
@@ -714,7 +717,7 @@ const lockfileTransformerTests: Array<Test> = [
 
   {
     name: "jsr_same_name_different_version",
-    fixture: fixtureFrom({
+    ...fixtureFrom({
       inJsrJsonContent: `[
   {
     "url": "${PLACEHOLDER}/@scope/package/version1_meta.json",
@@ -926,7 +929,7 @@ const lockfileTransformerTests: Array<Test> = [
 
   {
     name: "jsr_module_graphs",
-    fixture: fixtureFrom({
+    ...fixtureFrom({
       inJsrJsonContent: `[
   {
     "url": "${PLACEHOLDER}/@scope/package/version1_meta.json",
@@ -1217,4 +1220,4 @@ const lockfileTransformerTests: Array<Test> = [
   },
 ];
 
-runTests(lockfileTransformerTests, startMockServer(serverConfig));
+runTests(lockfileTransformerTests);
