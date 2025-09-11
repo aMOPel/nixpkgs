@@ -1,34 +1,3 @@
-type LockfileTransformerConfig = {
-  inPath: PathString;
-  outPathJsr: PathString;
-  outPathNpm: PathString;
-  outPathHttps: PathString;
-  lockfile: DenoLock;
-};
-
-type FileTransformerNpmConfig = {
-  inPath: PathString;
-  inBasePath: PathString;
-  cachePath: PathString;
-  commonLockfile: CommonLockFormatOut;
-  rootPath: PathString;
-};
-
-type SingleFodFetcherConfig = {
-  outPathPrefix: PathString;
-  inPathJsr: PathString;
-  inPathNpm: PathString;
-  inPathHttps: PathString;
-  inJsrRegistryUrl: string;
-  outPathVendored: PathString;
-  outPathNpm: PathString;
-  commonLockfileJsr: CommonLockFormatIn;
-  commonLockfileNpm: CommonLockFormatIn;
-  commonLockfileHttps: CommonLockFormatIn;
-};
-
-// ==============
-
 type PackageSpecifier = {
   fullString: string;
   registry: string | null;

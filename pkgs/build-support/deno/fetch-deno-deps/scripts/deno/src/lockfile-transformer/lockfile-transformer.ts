@@ -1,5 +1,13 @@
 import { getScopedName } from "../utils.ts";
 
+type LockfileTransformerConfig = {
+  inPath: PathString;
+  outPathJsr: PathString;
+  outPathNpm: PathString;
+  outPathHttps: PathString;
+  lockfile: DenoLock;
+};
+
 type Config = LockfileTransformerConfig;
 function getConfig(): Config {
   const flagsParsed = {
