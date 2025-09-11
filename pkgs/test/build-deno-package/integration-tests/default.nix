@@ -2,7 +2,6 @@
   lib,
   stdenvNoCC,
   fetch-deno-deps-scripts,
-  file-structure-transformer-vendor,
   deno,
   diff-so-fancy,
   static-web-server,
@@ -25,8 +24,8 @@ in
     '';
     nativeBuildInputs = [
       deno
-      fetch-deno-deps-scripts
-      file-structure-transformer-vendor
+      fetch-deno-deps-scripts.deno
+      fetch-deno-deps-scripts.rust
       diff-so-fancy
       static-web-server
     ];
