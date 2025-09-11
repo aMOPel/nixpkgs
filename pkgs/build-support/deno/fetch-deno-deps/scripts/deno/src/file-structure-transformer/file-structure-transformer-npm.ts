@@ -1,5 +1,13 @@
 import { addPrefix, getBasePath, getScopedName } from "../utils.ts";
 
+type FileTransformerNpmConfig = {
+  inPath: PathString;
+  inBasePath: PathString;
+  cachePath: PathString;
+  commonLockfile: CommonLockFormatOut;
+  rootPath: PathString;
+};
+
 type Config = FileTransformerNpmConfig;
 function getConfig(): Config {
   const flagsParsed = {

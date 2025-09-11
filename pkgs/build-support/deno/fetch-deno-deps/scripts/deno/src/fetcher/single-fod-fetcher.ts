@@ -7,6 +7,19 @@ import { fetchAllNpm } from "./fetch-npm.ts";
 import { addPrefix } from "../utils.ts";
 import { fetchAllHttps } from "./fetch-https.ts";
 
+type SingleFodFetcherConfig = {
+  outPathPrefix: PathString;
+  inPathJsr: PathString;
+  inPathNpm: PathString;
+  inPathHttps: PathString;
+  inJsrRegistryUrl: string;
+  outPathVendored: PathString;
+  outPathNpm: PathString;
+  commonLockfileJsr: CommonLockFormatIn;
+  commonLockfileNpm: CommonLockFormatIn;
+  commonLockfileHttps: CommonLockFormatIn;
+};
+
 type Config = SingleFodFetcherConfig;
 function getConfig(): Config {
   const flagsParsed = {
