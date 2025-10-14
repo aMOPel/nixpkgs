@@ -78,8 +78,8 @@ in
 let
 
   inherit (callPackage ../fetch-deno-deps/scripts/deno/default.nix { }) fetch-deno-deps-scripts;
-  inherit (callPackage ../fetch-deno-deps/scripts/rust/file-transformer-vendor/default.nix { })
-    file-transformer-vendor
+  inherit (callPackage ../fetch-deno-deps/scripts/rust/file-structure-transformer-vendor/default.nix { })
+    file-structure-transformer-vendor
     ;
 
   denoFlags_ = builtins.concatStringsSep " " denoFlags;
@@ -147,7 +147,7 @@ stdenvNoCC.mkDerivation (
       zip
       jq
       fetch-deno-deps-scripts
-      file-transformer-vendor
+      file-structure-transformer-vendor
     ];
 
     DENO_DIR = denoDir;

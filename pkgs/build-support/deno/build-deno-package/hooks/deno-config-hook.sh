@@ -64,8 +64,8 @@ denoConfigHook() {
   installDeps() {
     mkdir -p $DENO_DIR
     mkdir -p $vendorDir
-    file-transformer-npm --in-path "$denoDeps/$npmJsonName" --cache-path $DENO_DIR
-    file-transformer-vendor --cache-path $(pwd)/$DENO_DIR --vendor-path $(pwd)/$vendorDir --url-file-map "$denoDeps/$vendorJsonName"
+    file-structure-transformer-npm --in-path "$denoDeps/$npmJsonName" --cache-path $DENO_DIR
+    file-structure-transformer-vendor --cache-path $(pwd)/$DENO_DIR --vendor-path $(pwd)/$vendorDir --url-file-map "$denoDeps/$vendorJsonName"
   }
   installDeps
 
