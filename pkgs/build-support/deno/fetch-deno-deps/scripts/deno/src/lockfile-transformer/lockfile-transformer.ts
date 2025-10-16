@@ -54,7 +54,8 @@ function parsePackageSpecifier(fullString: string): PackageSpecifier {
   const split = nameVersionSuffix.split("_");
   const nameVersionMatch = split[0].match(/^(.+)@(.+)$/);
   if (!nameVersionMatch) {
-    throw new Error(`Invalid name@version format in: ${split[0]}`);
+    const msg = `Invalid name@version format in: ${fullString}`
+    throw new Error(msg);
   }
   const name = nameVersionMatch[1];
   const version = nameVersionMatch[2];
