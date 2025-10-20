@@ -33,12 +33,11 @@ in
           ./deno.json
         ];
       };
-      buildPhase =
-        ''
-          mkdir -p $out;
-          cp -r $src/* $out;
-        ''
-        + wrappers;
+      buildPhase = ''
+        mkdir -p $out;
+        cp -r $src/* $out;
+      ''
+      + wrappers;
       nativeBuildInputs = [
         makeWrapper
       ];
