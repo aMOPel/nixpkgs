@@ -5,6 +5,9 @@ denoBuildHook() {
 
   runHook preBuild
 
+  # have to make sure that DENO_DIR is an absolute path, so we don't run into issues when using workspaces with subdirectories
+  export DENO_DIR="$(realpath $DENO_DIR)"
+
   if [ -n "${binaryEntrypointPath-}" ]; then
     echo "Creating binary"
 
