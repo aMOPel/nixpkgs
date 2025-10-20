@@ -1,6 +1,6 @@
-# Deno Custom Fetcher
+# fetch-deno-deps
 
-This goal of this file is to make the code maintainable.
+This goal of this file is to make the code of `buildDenoPackage` maintainable.
 
 Deno's dependency cache API is very complex and obscure. It requires a lot of
 research and some reverse engineering to figure it all out.
@@ -11,7 +11,7 @@ which are not trivially understood, nor well documented at the time of writing.
 So to understand why the code is the way it is, a maintainer should read this whole file first,
 and use it as a reference later.
 
-## Formats
+## Deno's dependency cache formats
 
 This section documents what formats the Deno CLI uses for its dependency
 cache at the time of writing.
@@ -24,7 +24,6 @@ It's assumed that the reader knows:
 - what the purpose of a language build helper in Nixpkgs is
 - what Fixed Output Derivations (FODs) are,
   and why they are a necessity for language build helpers
-
 
 Since many of the formats are considered an implementation detail by the Deno
 maintainers, they are subject to change and compatibility to the Deno CLI can
@@ -121,9 +120,10 @@ The basic structure of their API is outlined
 Multiple steps are necessary, to fetch a package from the JSR.
 
 1. Fetch the `meta.json` file and look at available versions of a package.
-2. Pick a version and fetch the `<version>_meta.json` file and analyse at the
-   module graph of files, that the package contains.
-3. Fetch the relevant files individually.
+2. Pick a version in the `meta.json` file.
+3. Fetch the `<version>_meta.json` file for the picked version.
+4. Analyze the module graph in the `<version>_meta.json` file to get the file paths of the imported files.
+3. Fetch the imported files individually.
 
 #### `meta.json`
 
@@ -371,8 +371,9 @@ It looks like this:
 DENO_AUTH_TOKENS=a1b2c3d4e5f6@deno.land;f1e2d3c4b5a6@example.com:8080;username:password@deno.land
 ```
 
-**Not implemented**: This would require us to somehow get the
-`(credential, domain)` pairs and then provide all `curl` calls to the respective
+**Not implemented**: This would require us to somehow pass down the
+`(credential, domain)` pairs from the nix build to the fetcher script
+and then provide all `fetch` calls to the respective
 domain with the respective auth headers.
 
 ### Vendor directory
@@ -420,7 +421,7 @@ to fetch the file, `headers` are the response headers for that fetch, and
 
 We use them from Rust and not from JavaScript, because we don't have a way to
 package a Deno package with dependencies, except for the very build helper we
-are building here, which we can't use (chicken-egg-problem)
+are building here, which we can't use (chicken-egg-problem).
 
 #### `manifest.json`
 
@@ -484,8 +485,10 @@ so Deno can find the files.
 
 #### `registry.json`
 
-Deno uses a subset of the JSON file located at the following URL at the NPM
-registry and calls it `registry.json`.
+The NPM registry provides a `registry.json` file,
+somewhat similar to the `meta.json` file used in the JSR.
+
+Deno uses a subset of NPM's `registry.json` file.
 
 Deno requires this file to be present for all NPM packages.
 
@@ -496,7 +499,7 @@ Deno requires this file to be present for all NPM packages.
 
 **Format**:
 
-Deno's `registry.json` file
+Deno's subset of the `registry.json` file
 
 ```json
 {
@@ -546,7 +549,7 @@ can put empty values for some and omit the field altogether for others.
 Finally, we need to make sure, we put the file at the correct target location,
 so Deno can find it.
 
-#### `node_modules` directory
+#### `node_modules/` lifecycle scripts
 
 The `deno.json` option
 [`nodeModulesDir`](https://docs.deno.com/runtime/fundamentals/node/#node_modules)
@@ -592,9 +595,9 @@ calls to the respective domain with the respective auth headers.
 
 ### Type files
 
-Deno supports various methods to add second class dependencies on type files.
+Deno supports various methods to add second-class dependencies on type files.
 
-They are second class, because usually they are
+They are second-class, because usually they are
 
 - not added to the `deno.json` file or the lock-file
 - missing an integrity hash
@@ -684,35 +687,6 @@ the URL, the fetch call was made to.
 type files will only become known in the fetch step.
 
 The other problems mentioned above remain.
-
-## "import from lock file" feature
-
-**Not implemented**: It's currently not feasible to have an "import from lock file" functionality.
-
-There are several technical problems, that make it currently impractical to
-build the dependencies without a hash provided in nix:
-
-1. **Nixpkgs requirements**: The necessity in Nixpkgs to split the "fetch FOD" from
-   the "file transformation step", makes it impossible, since we need to record
-   the response headers in a separate FOD and then transform the files in the
-   another derivation using that information. Since there is no information in
-   the lock file about the headers, we have to copy the headers information to
-   `$out` of the FOD, which changes the hash, so we can't use the hashes from
-   the lock file for all the fetches where we need to record the headers.
-1. **Performance**: JSR's API architecture requires us to create a FOD per file of a
-   dependency (not per package, like NPM). This provides great granular caching,
-   but terrible performance when fetching, since the disc IO quickly gets out of
-   hand, with big JSR packages with hundreds of files. I actually tested this,
-   and a fetch with many jsr dependencies could really take a few minutes,
-   compared to the seconds it takes now.
-1. **Nix compatability**: Type file imports (which are not supported anyway, due to
-   their complexity) cannot work with this feature, since there are no hashes
-   for them in the lock-file, and some type files may only become known in the
-   fetch step.
-1. **Feasibility**: This feature would require a complete reimplementation of all
-   the fetching logic in Nix, which is a lot of effort, due to its complexity.
-   And the maintenance effort would double, which is not desirable, since Deno's
-   dependency cache API is still unstable.
 
 ## Architecture
 
@@ -923,11 +897,11 @@ and each kind requires special handling in each of the steps.
 
 Because of this, the scripts have separate logic for each kind.
 
-Most of the logic is written in Deno, except for the file structure transformer
+Most of the logic is written in TypeScript using Deno, except for the file structure transformer
 for the `vendor/` directory, which is written in Rust to use a specific library
-provided by Deno.
+provided by Deno upstream.
 
-Mind that the Deno code **can't import external dependencies**, since we can't
+Mind that the TypeScript code **can't import external dependencies**, since we can't
 package those with Nix until this build helper exists (chicken-egg-problem).
 
 #### Lock-file transformer
@@ -935,7 +909,7 @@ package those with Nix until this build helper exists (chicken-egg-problem).
 The lock-file transformer needs to transform the `deno.lock` into the
 `Common Lock Format`.
 
-The logic is written in a single Deno script.
+The logic is written in a single TypeScript file.
 
 It creates 3 `Common Lock` files, one per dependency kind, so they don't have
 to be separated again in the fetching step.
@@ -944,7 +918,7 @@ to be separated again in the fetching step.
 
 The fetcher is the most complex part of the three.
 
-The logic is written in Deno.
+The logic is written in TypeScript.
 
 It uses the 3 `Common Lock` files from the previous step, downloads all the
 dependencies and adds `outPaths` to the 3 `Common Lock` files.
@@ -952,10 +926,10 @@ dependencies and adds `outPaths` to the 3 `Common Lock` files.
 However, it does not write 3 three files to disk just like that, but combines
 `jsr:` and `https:` into `vendor.json` (see next step).
 
-It does not structure the downloaded files whatsoever. Each file is written
-to a unique path (using sha256 over the download URL) in the same folder.
+It does not structure the downloaded files whatsoever. Each file is written to the same folder
+to a unique path, using sha256 over the download URL.
 
-The extended `Common Lock` files are written to the same folder.
+The extended `Common Lock` files are also written to the same folder.
 
 #### File structure transformer
 
@@ -965,8 +939,38 @@ The file structure transformer has to split a little differently.
 1. And it has to put the `npm:` packages into the `$DENO_DIR`.
 
 For the `vendor/` directory, A thin Rust script is used, to utilise a library
-exposed by Deno.
+exposed by Deno upstream.
 
-For the `npm:` packages, a Deno script is used.
+For the `npm:` packages, a TypeScript file is used.
 
 The `npm:` packages are downloaded as `.tgz` files and have to be extracted in this step.
+
+## "import from lock file" feature
+
+**Not implemented**: It's currently not feasible to have an "import from lock file" functionality.
+
+There are several technical problems, that make it currently impractical to
+build the dependencies without a hash provided in Nix:
+
+1. **Nixpkgs requirements**: The necessity in Nixpkgs to split the "fetch FOD" from
+   the "file transformation step", makes it impossible, since we need to record
+   the response headers in a separate FOD and then transform the files in the
+   another derivation using that information. Since there is no information in
+   the lock file about the headers, we have to copy the headers information to
+   `$out` of the FOD, which changes the hash, so we can't use the hashes from
+   the lock file for all the fetches where we need to record the headers.
+1. **Performance**: JSR's API architecture requires us to create a FOD per file of a
+   dependency (not per package, like NPM). This provides great granular caching,
+   but terrible performance when fetching, since the disc IO quickly gets out of
+   hand, with big JSR packages with hundreds of files. I actually tested this,
+   and a fetch with many jsr dependencies could really take a few minutes,
+   compared to the seconds it takes now.
+1. **Nix compatability**: Type file imports (which are not supported anyway, due to
+   their complexity) cannot work with this feature, since there are no hashes
+   for them in the lock-file, and some type files may only become known in the
+   fetch step.
+1. **Feasibility**: This feature would require a complete reimplementation of all
+   the fetching logic in Nix, which is a lot of effort, due to its complexity.
+   And the maintenance effort would double, which is not desirable, since Deno's
+   dependency cache API is still unstable.
+

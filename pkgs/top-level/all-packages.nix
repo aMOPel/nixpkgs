@@ -3438,10 +3438,10 @@ with pkgs;
 
   fetch-deno-deps-scripts = {
     deno =
-      (callPackages ../build-support/deno/fetch-deno-deps/scripts/deno/default.nix { })
+      (callPackage ../build-support/deno/fetch-deno-deps/scripts/deno/default.nix { })
       .fetch-deno-deps-scripts;
     rust =
-      (callPackages
+      (callPackage
         ../build-support/deno/fetch-deno-deps/scripts/rust/file-structure-transformer-vendor/default.nix
         { }
       ).file-structure-transformer-vendor;
