@@ -3328,7 +3328,11 @@ with pkgs;
 
   node2nix = nodePackages.node2nix;
 
+  buildDenoPackage = callPackage ../build-support/deno/build-deno-package { };
+
   inherit (callPackage ../build-support/deno/fetch-deno-deps { }) fetchDenoDeps;
+
+  denoHooks = callPackage ../build-support/deno/build-deno-package/hooks { };
 
   fetch-deno-deps-scripts = {
     deno =

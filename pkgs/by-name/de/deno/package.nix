@@ -208,8 +208,8 @@ rustPlatform.buildRustPackage (finalAttrs: {
   '';
 
   postInstall = ''
-    # Remove non-essential binaries like denort and test_server
-    find $out/bin/* -not -name "deno" -delete
+    # Remove non-essential binaries like test_server
+    find $out/bin/* -not -name "deno" -not -name "denort" -delete
   ''
   + lib.optionalString canExecute ''
     installShellCompletion --cmd deno \
