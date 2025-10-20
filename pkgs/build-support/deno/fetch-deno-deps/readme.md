@@ -1,6 +1,6 @@
 # fetch-deno-deps
 
-This goal of this file is to make the code of `buildDenoPackage` maintainable.
+This goal of this file is to make the code of `fetch-deno-deps` maintainable.
 
 Deno's dependency cache API is very complex and obscure. It requires a lot of
 research and some reverse engineering to figure it all out.

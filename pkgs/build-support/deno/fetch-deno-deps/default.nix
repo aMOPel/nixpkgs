@@ -6,6 +6,9 @@
 }:
 let
   inherit (callPackage ./scripts/deno/default.nix { }) fetch-deno-deps-scripts;
+  inherit (callPackage ./scripts/rust/file-structure-transformer-vendor/default.nix { })
+    file-structure-transformer-vendor
+    ;
 
   transformDenoLock =
     {
@@ -62,6 +65,41 @@ let
       outputHashAlgo = "sha256";
     };
 
+  # this derivation only meant to be used, if the dependency dir is needed outside of buildDenoPackage
+  transformedFiles =
+    {
+      fetched,
+      name,
+      vendorJsonName,
+      npmJsonName,
+      denoDir,
+      vendorDir,
+    }:
+    stdenvNoCC.mkDerivation {
+      name = "denoDeps-final-${name}";
+
+      src = null;
+      unpackPhase = "true";
+
+      inherit
+        npmJsonName
+        vendorJsonName
+        ;
+
+      nativeBuildInputs = [
+        fetch-deno-deps-scripts
+        file-structure-transformer-vendor
+      ];
+      buildPhase = ''
+        export vendorDir="$out/${vendorDir}";
+        export DENO_DIR="$out/${denoDir}";
+        mkdir -p $DENO_DIR
+        mkdir -p $vendorDir
+        file-structure-transformer-npm --in-path "${fetched}/$npmJsonName" --cache-path $DENO_DIR
+        file-structure-transformer-vendor --cache-path $DENO_DIR --vendor-path $vendorDir --url-file-map "${fetched}/$vendorJsonName"
+      '';
+    };
+
 in
 {
   fetchDenoDeps =
@@ -69,8 +107,10 @@ in
       denoLock,
       name ? "deno-deps",
       hash ? lib.fakeHash,
-      vendorJsonName,
-      npmJsonName,
+      vendorJsonName ? "vendor.json",
+      npmJsonName ? "npm.json",
+      denoDir ? ".deno",
+      vendorDir ? "vendor",
     }:
     let
       transformedDenoLock = transformDenoLock { inherit denoLock; };
@@ -85,11 +125,23 @@ in
           name
           ;
       };
+
+      denoDeps = transformedFiles {
+        inherit
+          fetched
+          name
+          vendorJsonName
+          npmJsonName
+          denoDir
+          vendorDir
+          ;
+      };
     in
     {
       inherit
         transformedDenoLock
         fetched
+        denoDeps
         ;
     };
 }

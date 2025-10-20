@@ -3432,7 +3432,7 @@ with pkgs;
 
   buildDenoPackage = callPackage ../build-support/deno/build-deno-package { };
 
-  inherit (callPackages ../build-support/deno/fetch-deno-deps { }) fetchDenoDeps;
+  inherit (callPackage ../build-support/deno/fetch-deno-deps { }) fetchDenoDeps;
 
   denoHooks = callPackage ../build-support/deno/build-deno-package/hooks { };
 
