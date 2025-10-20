@@ -51,24 +51,22 @@ function getConfig(): Config {
   };
 }
 
-function parsePackageSpecifier(fullString: string): PackageSpecifier {
-  const matches = fullString.match(/^((.+):)?(@(.+)\/)?(.+)$/);
+export function parsePackageSpecifier(fullString: string): PackageSpecifier {
+  const matches = fullString.match(
+    /^(([^:]+):)?(@([^\/]+)\/)?([^@]+)@([^_]+)(_.*)?$/,
+  );
   if (!matches) {
     throw new Error(`Invalid package specifier: ${fullString}`);
   }
-  const registry = matches[2] || null;
-  const scope = matches[4] || null;
-  const nameVersionSuffix = matches[5];
-  const split = nameVersionSuffix.split("_");
-  const nameVersionMatch = split[0].match(/^(.+)@(.+)$/);
-  if (!nameVersionMatch) {
-    const msg = `Invalid name@version format in: ${fullString}`
-    throw new Error(msg);
-  }
-  const name = nameVersionMatch[1];
-  const version = nameVersionMatch[2];
-  const suffix = split.length === 1 ? null : split.slice(1).join("_");
-  return { fullString, registry, scope, name, version, suffix };
+  const [, , registry, , scope, name, version, suffix] = matches;
+  return {
+    fullString,
+    registry: registry || null,
+    scope: scope || null,
+    name,
+    version,
+    suffix: suffix || null,
+  };
 }
 
 function makeVersionMetaJsonUrl(packageSpecifier: PackageSpecifier): UrlString {
