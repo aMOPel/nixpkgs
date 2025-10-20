@@ -1,4 +1,12 @@
 import { getScopedName } from "../utils.ts";
+import type {
+  CommonLockFormatIn,
+  DenoLock,
+  PackageFileIn,
+  PackageSpecifier,
+  PathString,
+  UrlString,
+} from "../types.d.ts";
 
 type LockfileTransformerConfig = {
   inPath: PathString;

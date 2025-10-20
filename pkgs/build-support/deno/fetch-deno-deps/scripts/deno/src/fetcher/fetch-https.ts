@@ -1,3 +1,8 @@
+import type {
+  CommonLockFormatIn,
+  CommonLockFormatOut,
+  PathString,
+} from "../types.d.ts";
 import { fetchDefault } from "./fetch-default.ts";
 
 export async function fetchAllHttps(
@@ -5,7 +10,9 @@ export async function fetchAllHttps(
   commonLockfileHttps: CommonLockFormatIn,
 ): Promise<CommonLockFormatOut> {
   let result: CommonLockFormatOut = [];
-  const resultUnresolved = commonLockfileHttps.map((p)=>fetchDefault(outPathPrefix, p))
+  const resultUnresolved = commonLockfileHttps.map((p) =>
+    fetchDefault(outPathPrefix, p)
+  );
 
   await Promise.all(resultUnresolved).then((packageFiles) => {
     const fixedUrlPackageFiles = packageFiles.map((p) => {

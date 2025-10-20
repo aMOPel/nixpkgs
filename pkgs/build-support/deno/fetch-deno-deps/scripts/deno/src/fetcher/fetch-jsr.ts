@@ -6,16 +6,31 @@ import {
   isPath,
   normalizeUnixPath,
 } from "../utils.ts";
+import type {
+  CommonLockFormatIn,
+  CommonLockFormatOut,
+  MetaJson,
+  PackageFileIn,
+  PackageFileOut,
+  PackageSpecifier,
+  PathString,
+  VersionMetaJson,
+} from "../types.d.ts";
 
 function makeJsrPackageFileUrl(
   inJsrRegistryUrl: string,
   packageSpecifier: PackageSpecifier,
   filePath: string,
 ): string {
-  return `${inJsrRegistryUrl}/${getScopedName(packageSpecifier)}/${packageSpecifier.version}${filePath}`;
+  return `${inJsrRegistryUrl}/${
+    getScopedName(packageSpecifier)
+  }/${packageSpecifier.version}${filePath}`;
 }
 
-function makeMetaJsonUrl(inJsrRegistryUrl: string, packageSpecifier: PackageSpecifier): string {
+function makeMetaJsonUrl(
+  inJsrRegistryUrl: string,
+  packageSpecifier: PackageSpecifier,
+): string {
   return `${inJsrRegistryUrl}/${getScopedName(packageSpecifier)}/meta.json`;
 }
 
@@ -48,15 +63,18 @@ async function getFilesAndHashesUsingModuleGraph(
       addPrefix(versionMetaJson.outPath, outPathPrefix),
     ),
   );
-  const moduleGraph =
-    parsedVersionMetaJson["moduleGraph1"] ||
+  const moduleGraph = parsedVersionMetaJson["moduleGraph1"] ||
     parsedVersionMetaJson["moduleGraph2"];
   if (!moduleGraph) {
-    throw `moduleGraph required but not found in ${JSON.stringify(parsedVersionMetaJson)}`;
+    throw `moduleGraph required but not found in ${
+      JSON.stringify(parsedVersionMetaJson)
+    }`;
   }
   const exports = parsedVersionMetaJson["exports"];
   if (!exports) {
-    throw `exports required but not found in ${JSON.stringify(parsedVersionMetaJson)}`;
+    throw `exports required but not found in ${
+      JSON.stringify(parsedVersionMetaJson)
+    }`;
   }
 
   const importers = Object.keys(moduleGraph);
@@ -77,8 +95,8 @@ async function getFilesAndHashesUsingModuleGraph(
             // dynamic imports can also be arrays (when multiple arguments were given
             // to the import function. we just keep the first argument
             if (!dependency.argument) {
-              specifier = ""
-              return
+              specifier = "";
+              return;
             }
             const args = dependency.argument.filter(
               (v): v is { type: "string"; value: string } =>
@@ -86,15 +104,19 @@ async function getFilesAndHashesUsingModuleGraph(
                 typeof v.value === "string" &&
                 v.value.length > 0,
             );
-            if (args.length > 0){
+            if (args.length > 0) {
               specifier = args[0].value;
             } else {
-              throw `unsupported moduleGraph format in ${JSON.stringify(versionMetaJson)}:\n\n${moduleGraph}`;
+              throw `unsupported moduleGraph format in ${
+                JSON.stringify(versionMetaJson)
+              }:\n\n${moduleGraph}`;
             }
           }
           break;
         default:
-          throw `unsupported moduleGraph format in ${JSON.stringify(versionMetaJson)}:\n\n${moduleGraph}`;
+          throw `unsupported moduleGraph format in ${
+            JSON.stringify(versionMetaJson)
+          }:\n\n${moduleGraph}`;
       }
       // dynamic imports can also be full package specifiers, like "npm:package@version"
       // we skip those here
@@ -109,8 +131,9 @@ async function getFilesAndHashesUsingModuleGraph(
   const set = new Set(all);
   const result: Record<string, string> = {};
   Array.from(set).forEach(
-    (fileName) =>
-      (result[fileName] = parsedVersionMetaJson.manifest[fileName].checksum),
+    (
+      fileName,
+    ) => (result[fileName] = parsedVersionMetaJson.manifest[fileName].checksum),
   );
   return result;
 }
@@ -150,7 +173,12 @@ export async function fetchJsr(
   result[0] = await fetchVersionMetaJson(outPathPrefix, versionMetaJson);
 
   result = result.concat(
-    await fetchJsrPackageFiles(outPathPrefix, inJsrRegistryUrl, result[0], packageSpecifier),
+    await fetchJsrPackageFiles(
+      outPathPrefix,
+      inJsrRegistryUrl,
+      result[0],
+      packageSpecifier,
+    ),
   );
   return result;
 }
@@ -209,13 +237,18 @@ async function makeMetaJson(
   return metaJsons;
 }
 
-async function writeMetaJson(outPathPrefix: PathString, metaJsonData: MetaJsonData) {
+async function writeMetaJson(
+  outPathPrefix: PathString,
+  metaJsonData: MetaJsonData,
+) {
   const path = addPrefix(
     metaJsonData.packageFile.outPath,
     outPathPrefix,
   );
 
-  const data = new TextEncoder().encode(JSON.stringify(metaJsonData.content, null, 2));
+  const data = new TextEncoder().encode(
+    JSON.stringify(metaJsonData.content, null, 2),
+  );
   await Deno.writeFile(path, data, { create: true });
 }
 
@@ -231,10 +264,19 @@ export async function fetchAllJsr(
   for (const versionMetaJson of commonLockfileJsr) {
     const packageSpecifier = versionMetaJson?.meta?.packageSpecifier;
     if (!packageSpecifier) {
-      throw `packageSpecifier required but not found in ${JSON.stringify(versionMetaJson)}`;
+      throw `packageSpecifier required but not found in ${
+        JSON.stringify(versionMetaJson)
+      }`;
     }
 
-    resultUnresolved.push(fetchJsr(outPathPrefix, inJsrRegistryUrl, versionMetaJson, packageSpecifier));
+    resultUnresolved.push(
+      fetchJsr(
+        outPathPrefix,
+        inJsrRegistryUrl,
+        versionMetaJson,
+        packageSpecifier,
+      ),
+    );
 
     metaJsons = await makeMetaJson(
       inJsrRegistryUrl,

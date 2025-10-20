@@ -1,4 +1,5 @@
 import { addPrefix, getBasePath, getScopedName } from "../utils.ts";
+import type { PathString, PackageSpecifier, CommonLockFormatOut } from "../types.d.ts";
 
 type FileTransformerNpmConfig = {
   inPath: PathString;

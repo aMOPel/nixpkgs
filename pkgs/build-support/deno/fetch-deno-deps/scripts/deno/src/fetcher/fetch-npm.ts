@@ -1,5 +1,14 @@
 import { fetchDefault, makeOutPath } from "./fetch-default.ts";
 import { addPrefix, getScopedName } from "../utils.ts";
+import type {
+  CommonLockFormatIn,
+  CommonLockFormatOut,
+  PackageFileIn,
+  PackageFileOut,
+  PackageSpecifier,
+  PathString,
+  RegistryJson,
+} from "../types.d.ts";
 
 function makeRegistryJsonUrl(packageSpecifier: PackageSpecifier): string {
   // not a real url, needs to be unique per scope+name, but not unique per version

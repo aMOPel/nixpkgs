@@ -6,6 +6,11 @@ import { fetchAllJsr } from "./fetch-jsr.ts";
 import { fetchAllNpm } from "./fetch-npm.ts";
 import { addPrefix } from "../utils.ts";
 import { fetchAllHttps } from "./fetch-https.ts";
+import type {
+  CommonLockFormatIn,
+  CommonLockFormatOut,
+  PathString,
+} from "../types.d.ts";
 
 type SingleFodFetcherConfig = {
   outPathPrefix: PathString;
@@ -45,7 +50,7 @@ function getConfig(): Config {
     }
   });
 
-  const dec = new TextDecoder()
+  const dec = new TextDecoder();
   return {
     commonLockfileJsr: JSON.parse(
       dec.decode(Deno.readFileSync(flagsParsed["in-path-jsr"])),
@@ -66,11 +71,18 @@ function getConfig(): Config {
   };
 }
 
-type Lockfiles = { vendor: CommonLockFormatOut; npm: CommonLockFormatOut };
+type Lockfiles = { vendor: CommonLockFormatIn; npm: CommonLockFormatOut };
 async function fetchAll(config: Config): Promise<Lockfiles> {
   const lockfilesByRegistry = {
-    jsr: await fetchAllJsr(config.outPathPrefix, config.commonLockfileJsr, config.inJsrRegistryUrl),
-    https: await fetchAllHttps(config.outPathPrefix, config.commonLockfileHttps),
+    jsr: await fetchAllJsr(
+      config.outPathPrefix,
+      config.commonLockfileJsr,
+      config.inJsrRegistryUrl,
+    ),
+    https: await fetchAllHttps(
+      config.outPathPrefix,
+      config.commonLockfileHttps,
+    ),
     npm: await fetchAllNpm(config.outPathPrefix, config.commonLockfileNpm),
   };
 

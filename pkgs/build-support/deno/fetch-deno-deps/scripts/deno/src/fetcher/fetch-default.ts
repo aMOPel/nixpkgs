@@ -1,4 +1,5 @@
-import { addPrefix, getBasePath, isPath, normalizeUnixPath } from "../utils.ts";
+import type { PackageFileIn, PackageFileOut, PathString } from "../types.d.ts";
+import { addPrefix } from "../utils.ts";
 
 // https://github.com/denoland/deno_cache_dir/blob/0.23.0/rs_lib/src/local.rs#L802
 const keepHeaders = [

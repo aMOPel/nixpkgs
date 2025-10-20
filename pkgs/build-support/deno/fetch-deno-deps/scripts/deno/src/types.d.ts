@@ -1,4 +1,4 @@
-type PackageSpecifier = {
+export type PackageSpecifier = {
   fullString: string;
   registry: string | null;
   scope: string | null;

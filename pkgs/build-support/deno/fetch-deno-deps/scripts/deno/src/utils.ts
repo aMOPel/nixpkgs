@@ -1,3 +1,5 @@
+import { PackageSpecifier, PathString } from "./types.d.ts";
+
 export function addPrefix(p: PathString, prefix: PathString): PathString {
   return prefix !== "" ? prefix + "/" + p : p;
 }
